@@ -1,0 +1,261 @@
+@import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary: 230 65% 50%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 230 65% 45%;
+    --primary-muted: 230 50% 95%;
+    
+    --background: 220 20% 98%;
+    --foreground: 230 25% 15%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 230 25% 15%;
+    --card-hover: 220 20% 97%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 230 25% 15%;
+    
+    --secondary: 220 15% 94%;
+    --secondary-foreground: 230 20% 30%;
+    
+    --muted: 220 15% 96%;
+    --muted-foreground: 220 10% 50%;
+    
+    --accent: 165 60% 45%;
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --success: 145 60% 42%;
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    
+    --info: 200 80% 50%;
+    --info-foreground: 0 0% 100%;
+    
+    --border: 220 15% 90%;
+    --input: 220 15% 90%;
+    --ring: 230 65% 50%;
+    
+    --radius: 0.75rem;
+    
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 230 20% 30%;
+    --sidebar-primary: 230 65% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 15% 96%;
+    --sidebar-accent-foreground: 230 20% 30%;
+    --sidebar-border: 220 15% 92%;
+    --sidebar-ring: 230 65% 50%;
+
+    --topic-notice: 0 72% 55%;
+    --topic-knowledge: 230 65% 50%;
+    --topic-employment: 145 60% 42%;
+    --topic-smalltalk: 280 60% 55%;
+
+    --skeleton: 220 15% 92%;
+    --skeleton-shine: 220 15% 96%;
+  }
+
+  .dark {
+    --primary: 230 60% 65%;
+    --primary-foreground: 230 25% 10%;
+    --primary-hover: 230 60% 70%;
+    --primary-muted: 230 30% 20%;
+    
+    --background: 230 20% 8%;
+    --foreground: 220 15% 95%;
+    
+    --card: 230 18% 12%;
+    --card-foreground: 220 15% 95%;
+    --card-hover: 230 18% 15%;
+    
+    --popover: 230 18% 12%;
+    --popover-foreground: 220 15% 95%;
+    
+    --secondary: 230 15% 18%;
+    --secondary-foreground: 220 15% 85%;
+    
+    --muted: 230 15% 15%;
+    --muted-foreground: 220 10% 55%;
+    
+    --accent: 165 50% 50%;
+    --accent-foreground: 230 25% 10%;
+    
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --success: 145 50% 45%;
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 38 80% 55%;
+    --warning-foreground: 230 25% 10%;
+    
+    --info: 200 70% 55%;
+    --info-foreground: 0 0% 100%;
+    
+    --border: 230 15% 20%;
+    --input: 230 15% 20%;
+    --ring: 230 60% 65%;
+    
+    --sidebar-background: 230 18% 10%;
+    --sidebar-foreground: 220 15% 85%;
+    --sidebar-primary: 230 60% 65%;
+    --sidebar-primary-foreground: 230 25% 10%;
+    --sidebar-accent: 230 15% 18%;
+    --sidebar-accent-foreground: 220 15% 85%;
+    --sidebar-border: 230 15% 18%;
+    --sidebar-ring: 230 60% 65%;
+
+    --topic-notice: 0 65% 55%;
+    --topic-knowledge: 230 60% 65%;
+    --topic-employment: 145 50% 50%;
+    --topic-smalltalk: 280 50% 60%;
+
+    --skeleton: 230 15% 18%;
+    --skeleton-shine: 230 15% 22%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .skeleton {
+    @apply relative overflow-hidden bg-skeleton rounded-md;
+  }
+  
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--skeleton-shine)),
+      transparent
+    );
+    animation: skeleton-shimmer 1.5s infinite;
+  }
+
+  .card-interactive {
+    @apply transition-all duration-200 ease-out;
+  }
+  
+  .card-interactive:hover {
+    @apply shadow-lg;
+    transform: translateY(-2px);
+  }
+
+  .badge-notice {
+    @apply bg-[hsl(var(--topic-notice)/0.1)] text-[hsl(var(--topic-notice))];
+  }
+  
+  .badge-knowledge {
+    @apply bg-[hsl(var(--topic-knowledge)/0.1)] text-[hsl(var(--topic-knowledge))];
+  }
+  
+  .badge-employment {
+    @apply bg-[hsl(var(--topic-employment)/0.1)] text-[hsl(var(--topic-employment))];
+  }
+  
+  .badge-smalltalk {
+    @apply bg-[hsl(var(--topic-smalltalk)/0.1)] text-[hsl(var(--topic-smalltalk))];
+  }
+
+  .glass {
+    @apply bg-card/80 backdrop-blur-md;
+  }
+
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  }
+
+  .container-tight {
+    @apply max-w-3xl mx-auto px-4;
+  }
+  
+  .container-wide {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
+}
