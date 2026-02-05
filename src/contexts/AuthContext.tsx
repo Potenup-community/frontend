@@ -46,14 +46,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (response && response.role) {
         try {
-          const userInfo = await api.get<User>('/users/myInfo');
-          setUser(userInfo);
+          const userInfo: any = await api.get('/users/myInfo');
+          setUser({
+            id: userInfo.userId,
+            name: userInfo.name,
+            email: userInfo.email,
+            role: userInfo.role,
+            trackId: userInfo.trackId,
+            trackName: userInfo.trackName,
+            profileImageUrl: userInfo.profileImageUrl,
+          });
         } catch {
-          setUser({ 
-            id: response.userId || 0, 
-            name: '', 
-            email: '', 
-            role: response.role as 'USER' | 'ADMIN' 
+          setUser({
+            id: response.userId || 0,
+            name: '',
+            email: '',
+            role: response.role as 'USER' | 'ADMIN'
           });
         }
       } else {

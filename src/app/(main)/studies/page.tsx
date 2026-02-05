@@ -19,7 +19,6 @@ export default function Studies() {
     const res: any = await api.get('/studies', {
       page: pageParam,
       size: 10,
-      status: 'APPROVED',
     });
 
     // Map API response to Study interface

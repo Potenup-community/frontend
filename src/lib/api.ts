@@ -45,6 +45,7 @@ class ApiClient {
     // Handle other errors
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error(`[API Error] ${options.method || 'GET'} ${endpoint} → ${response.status}`, errorData);
       throw new ApiError(
         errorData.code || 'UNKNOWN_ERROR',
         response.status,
@@ -247,6 +248,7 @@ export interface Comment {
   author: {
     id: number;
     name: string;
+    trackName?: string;
     profileImageUrl?: string;
   };
   parentId?: number;
@@ -257,7 +259,188 @@ export interface Comment {
   createdAt: string;
   updatedAt: string;
   mentionedUsers?: Array<{ id: number; name: string }>;
+  replies?: Comment[];
 }
+
+// ==================== Post API Types ====================
+
+export interface PostCreateRequest {
+  draftId: string;
+  topic: string;
+  title: string;
+  content: string;
+  highlightType?: string;
+}
+
+export interface PostUpdateRequest {
+  draftId: string;
+  topic?: string;
+  title?: string;
+  content?: string;
+  highlightType?: string;
+}
+
+// ==================== Comment API Types ====================
+
+export interface CommentCreateRequest {
+  postId: number;
+  parentId?: number;
+  content: string;
+  mentionUserIds?: number[];
+}
+
+export interface CommentUpdateRequest {
+  content: string;
+  mentionUserIds?: number[];
+}
+
+// ==================== Dashboard Types ====================
+
+export interface DashboardOverview {
+  totalPostCount: number;
+  totalUsers: number;
+}
+
+// ==================== User/Mention Types ====================
+
+export interface UserSummary {
+  userId: number;
+  name: string;
+  profileImageUrl?: string;
+  trackName?: string;
+}
+
+export interface ProfileInfo {
+  userId: number;
+  userName: string;
+  imageUrl: string;
+}
+
+// ==================== Post API Functions ====================
+
+export const postApi = {
+  // 게시글 목록 조회
+  getSummary: (params?: { page?: number; size?: number; topic?: string }) =>
+    api.get<{ contents: any[]; hasNext: boolean; nextPage: number }>('/posts/summary', params),
+
+  // 게시글 상세 조회
+  getPost: (id: number) => api.get<any>(`/posts/${id}`),
+
+  // 게시글 생성
+  createPost: (data: PostCreateRequest) => api.post<void>('/posts', data),
+
+  // 게시글 수정
+  updatePost: (id: number, data: PostUpdateRequest) => api.patch<void>(`/posts/${id}`, data),
+
+  // 게시글 삭제
+  deletePost: (id: number) => api.delete<void>(`/posts/${id}`),
+
+  // 내 게시글 목록
+  getMyPosts: (params?: { page?: number; size?: number }) =>
+    api.get<{ contents: any[]; hasNext: boolean; nextPage: number }>('/posts/me', params),
+
+  // 내가 좋아요한 게시글
+  getMyLikedPosts: (params?: { page?: number; size?: number }) =>
+    api.get<{ contents: any[]; hasNext: boolean; nextPage: number }>('/posts/posts/me/liked', params),
+};
+
+// ==================== Comment API Functions ====================
+
+export const commentApi = {
+  // 게시글 댓글 조회
+  getComments: (postId: number) => api.get<any>(`/comments/${postId}`),
+
+  // 댓글 작성
+  createComment: (data: CommentCreateRequest) => api.post<void>('/comments', data),
+
+  // 댓글 수정
+  updateComment: (commentId: number, data: CommentUpdateRequest) =>
+    api.put<void>(`/comments/${commentId}`, data),
+
+  // 댓글 삭제
+  deleteComment: (commentId: number) => api.delete<void>(`/comments/${commentId}`),
+
+  // 내 댓글 목록
+  getMyComments: (params?: { page?: number; size?: number }) =>
+    api.get<{ contents: any[]; hasNext: boolean; nextPage: number }>('/comments/me', params),
+};
+
+// ==================== Reaction API Functions ====================
+
+export const reactionApi = {
+  // 리액션 추가
+  addReaction: (data: { targetType: 'POST' | 'COMMENT'; targetId: number; reactionType: 'LIKE' }) =>
+    api.post<void>('/reactions', data),
+
+  // 리액션 취소
+  removeReaction: (data: { targetType: 'POST' | 'COMMENT'; targetId: number; reactionType: 'LIKE' }) =>
+    api.delete<void>('/reactions', data),
+
+  // 게시글 리액션 조회
+  getPostReaction: (postId: number) => api.get<any>(`/reactions/posts/${postId}`),
+
+  // 게시글 리액션 배치 조회
+  getPostReactionsBatch: (postIds: number[]) =>
+    api.get<any>('/reactions/posts', { postIds } as any),
+
+  // 댓글 리액션 배치 조회
+  getCommentReactionsBatch: (commentIds: number[]) =>
+    api.get<any>('/reactions/comments', { commentIds } as any),
+};
+
+// ==================== Dashboard API Functions ====================
+
+export const dashboardApi = {
+  getOverview: () => api.get<DashboardOverview>('/dashboard/overview'),
+};
+
+// ==================== User/Profile API Functions ====================
+
+export const userApi = {
+  // 내 정보 조회
+  getMyInfo: () => api.get<User>('/users/myInfo'),
+
+  // 멘션용 유저 목록 조회
+  getMentionUsers: (params?: { size?: number; cursorId?: number }) =>
+    api.get<UserSummary[]>('/users', params),
+
+  // 프로필 이미지 조회
+  getProfileImage: () => api.get<ProfileInfo>('/users/profiles/me'),
+
+  // 프로필 이미지 업로드
+  uploadProfileImage: (formData: FormData) => api.upload<void>('/users/profiles/me', formData),
+
+  // 프로필 이미지 삭제
+  deleteProfileImage: () => api.delete<void>('/users/profiles/me'),
+
+  // 회원가입
+  signup: (data: { idToken: string; trackId: number; name: string; phoneNumber: string; provider: string }) =>
+    api.post<void>('/users/signup', data),
+};
+
+// ==================== Notification API Functions ====================
+
+export const notificationApi = {
+  // 알림 목록 조회
+  getNotifications: (params?: { page?: number; size?: number }) =>
+    api.get<NotificationsResponse>('/notifications', params),
+
+  // 읽지 않은 알림 수
+  getUnreadCount: () => api.get<UnreadCountResponse>('/notifications/unread-count'),
+
+  // 개별 알림 읽음
+  markAsRead: (id: number) => api.patch<void>(`/notifications/${id}/read`),
+
+  // 전체 알림 읽음
+  markAllAsRead: () => api.patch<void>('/notifications/read-all'),
+};
+
+// ==================== File API Functions ====================
+
+export const fileApi = {
+  upload: (formData: FormData) =>
+    api.upload<{ url: string; relativePath?: string }>('/files/upload', formData),
+};
 
 export interface Study {
   id: number;

@@ -255,19 +255,11 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
                   {BUDGET_LABELS[study.budget as keyof typeof BUDGET_LABELS] || study.budget}
                 </Badge>
               </div>
-              {study.schedule && (
-                <>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">차수</span>
-                    <span className="font-medium">{study.schedule.month}차</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">모집 기간</span>
-                    <span className="text-sm">
-                      {study.schedule.recruitStartDate} ~ {study.schedule.recruitEndDate}
-                    </span>
-                  </div>
-                </>
+              {study.scheduleName && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">일정</span>
+                  <span className="font-medium">{study.scheduleName}</span>
+                </div>
               )}
             </CardContent>
           </Card>

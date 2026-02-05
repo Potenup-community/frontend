@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Camera, Loader2, User, Mail, GraduationCap } from 'lucide-react';
+import { Camera, Loader2, User, Mail, GraduationCap, Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { UserAvatar } from '@/components/ui/UserAvatar';
-import { api, User as UserType } from '@/lib/api';
+import { api, userApi, User as UserType } from '@/lib/api';
 import { toast } from 'sonner';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -33,22 +33,34 @@ export function ProfileEditModal({ open, onOpenChange, user }: ProfileEditModalP
   // 프로필 이미지 업로드 mutation
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
-      // 프로필 이미지 직접 업로드 (POST /users/profiles/me)
       const formData = new FormData();
       formData.append('file', file);
-
-      const response = await api.upload<Record<string, unknown>>('/users/profiles/me', formData);
-      return response;
+      return userApi.uploadProfileImage(formData);
     },
     onSuccess: async () => {
       toast.success('프로필 이미지가 변경되었습니다.');
-      await checkAuth(); // 사용자 정보 새로고침
+      await checkAuth();
       queryClient.invalidateQueries({ queryKey: ['user'] });
       handleClose();
     },
     onError: (error: any) => {
       console.error('Upload error:', error);
       const errorMessage = error?.message || '프로필 이미지 변경에 실패했습니다.';
+      toast.error(errorMessage);
+    },
+  });
+
+  // 프로필 이미지 삭제 mutation
+  const deleteMutation = useMutation({
+    mutationFn: () => userApi.deleteProfileImage(),
+    onSuccess: async () => {
+      toast.success('프로필 이미지가 삭제되었습니다.');
+      await checkAuth();
+      queryClient.invalidateQueries({ queryKey: ['user'] });
+      handleClose();
+    },
+    onError: (error: any) => {
+      const errorMessage = error?.message || '프로필 이미지 삭제에 실패했습니다.';
       toast.error(errorMessage);
     },
   });
@@ -140,15 +152,33 @@ export function ProfileEditModal({ open, onOpenChange, user }: ProfileEditModalP
               />
             </div>
 
-            <Button
-              variant="link"
-              size="sm"
-              onClick={triggerFileInput}
-              className="mt-2 text-primary"
-            >
-              <Camera className="h-4 w-4 mr-1" />
-              이미지 변경
-            </Button>
+            <div className="flex items-center gap-2 mt-2">
+              <Button
+                variant="link"
+                size="sm"
+                onClick={triggerFileInput}
+                className="text-primary"
+              >
+                <Camera className="h-4 w-4 mr-1" />
+                이미지 변경
+              </Button>
+              {user.profileImageUrl && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={() => deleteMutation.mutate()}
+                  disabled={deleteMutation.isPending}
+                  className="text-destructive"
+                >
+                  {deleteMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4 mr-1" />
+                  )}
+                  이미지 삭제
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* User Info Fields (Read-only) */}

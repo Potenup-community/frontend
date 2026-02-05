@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Heart, MessageCircle, Eye, MoreHorizontal, Trash2, Edit, Send } from 'lucide-react';
+import { ArrowLeft, Heart, MessageCircle, Eye, MoreHorizontal, Trash2, Edit, Send, Pencil, X, Reply, ChevronDown, ChevronUp, AtSign } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
@@ -32,24 +32,25 @@ import { formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, Post, Comment } from '@/lib/api';
+import { api, postApi, commentApi, reactionApi, userApi, Post, Comment, UserSummary } from '@/lib/api';
 import { API_BASE_URL } from '@/lib/constants';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function PostDetail() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
-  
+  const { user } = useAuth();
+
   const [commentText, setCommentText] = useState('');
+  const [mentionUserIds, setMentionUserIds] = useState<number[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const resolveImageSrc = (src: string) => {
     if (src.startsWith('data:') || src.startsWith('blob:')) return src;
     if (src.startsWith('http://') || src.startsWith('https://')) {
       const apiIndex = src.indexOf('/api/v1/');
-      if (apiIndex !== -1) {
-        return src.slice(apiIndex);
-      }
+      if (apiIndex !== -1) return src.slice(apiIndex);
       return src;
     }
     if (src.startsWith('/api/')) return src;
@@ -62,8 +63,7 @@ export default function PostDetail() {
   const { data: post, isLoading: isPostLoading } = useQuery({
     queryKey: ['post', id],
     queryFn: async () => {
-      const res: any = await api.get(`/posts/${id}`);
-      // Map API response to Post interface
+      const res: any = await postApi.getPost(Number(id));
       return {
         id: res.postId,
         topic: res.topic,
@@ -80,11 +80,13 @@ export default function PostDetail() {
         commentCount: res.commentsCount,
         viewCount: 0,
         isReacted: res.reactions?.some((r: any) => r.reactedByMe) || false,
-        isAuthor: false, // Need to check against current user or API should return it? API doesn't seem to return isAuthor explicitly, might need to compare with user ID from auth context.
+        isAuthor: user ? res.writerId === user.id : false,
         createdAt: res.wroteAt,
         updatedAt: res.wroteAt,
         highlightType: res.highlightType,
-      } as Post;
+        previousPost: res.previousPost,
+        nextPost: res.nextPost,
+      } as Post & { previousPost?: any; nextPost?: any };
     },
     enabled: !!id,
   });
@@ -93,46 +95,37 @@ export default function PostDetail() {
   const { data: comments, isLoading: isCommentsLoading } = useQuery({
     queryKey: ['comments', id],
     queryFn: async () => {
-      const res: any = await api.get(`/comments/${id}`);
-      // Recursive mapping function if needed, but for now map top level
+      const res: any = await commentApi.getComments(Number(id));
       const mapComment = (c: any): Comment => ({
         id: c.commentId,
         content: c.content,
         author: {
           id: c.author.userId,
           name: c.author.name,
+          trackName: c.author.trackName,
           profileImageUrl: c.author.profileImageUrl,
         },
         reactionCount: c.commentReactionStats?.totalCount || 0,
         isReacted: Object.values(c.commentReactionStats?.summaries || {}).some((s: any) => s.reactedByMe),
-        isAuthor: false, // Same issue as post
+        isAuthor: user ? c.author.userId === user.id : false,
         isDeleted: c.isDeleted,
         createdAt: c.createdAt,
         updatedAt: c.createdAt,
         replies: c.replies?.map(mapComment),
       });
-      
       return res.contents.map(mapComment);
     },
     enabled: !!id,
   });
 
-  // Like Mutation
+  // Like Post Mutation
   const likeMutation = useMutation({
     mutationFn: async () => {
       if (!post) return;
       if (post.isReacted) {
-        await api.delete('/reactions', {
-          targetType: 'POST',
-          targetId: post.id,
-          reactionType: 'LIKE',
-        });
+        await reactionApi.removeReaction({ targetType: 'POST', targetId: post.id, reactionType: 'LIKE' });
       } else {
-        await api.post('/reactions', {
-          targetType: 'POST',
-          targetId: post.id,
-          reactionType: 'LIKE',
-        });
+        await reactionApi.addReaction({ targetType: 'POST', targetId: post.id, reactionType: 'LIKE' });
       }
     },
     onSuccess: () => {
@@ -143,16 +136,17 @@ export default function PostDetail() {
 
   // Comment Mutation
   const commentMutation = useMutation({
-    mutationFn: async (content: string) => {
-      await api.post('/comments', {
+    mutationFn: ({ content, mentionIds }: { content: string; mentionIds?: number[] }) =>
+      commentApi.createComment({
         postId: Number(id),
         content,
-      });
-    },
+        mentionUserIds: mentionIds?.length ? mentionIds : undefined,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['comments', id] });
-      queryClient.invalidateQueries({ queryKey: ['post', id] }); // Update comment count
+      queryClient.invalidateQueries({ queryKey: ['post', id] });
       setCommentText('');
+      setMentionUserIds([]);
       toast.success('댓글이 작성되었습니다.');
     },
     onError: () => toast.error('댓글 작성에 실패했습니다.'),
@@ -160,9 +154,7 @@ export default function PostDetail() {
 
   // Delete Post Mutation
   const deletePostMutation = useMutation({
-    mutationFn: async () => {
-      await api.delete(`/posts/${id}`);
-    },
+    mutationFn: () => postApi.deletePost(Number(id)),
     onSuccess: () => {
       toast.success('게시글이 삭제되었습니다.');
       router.push('/');
@@ -170,22 +162,7 @@ export default function PostDetail() {
     onError: () => toast.error('게시글 삭제에 실패했습니다.'),
   });
 
-  // Delete Comment Mutation
-  const deleteCommentMutation = useMutation({
-    mutationFn: async (commentId: number) => {
-      await api.delete(`/comments/${commentId}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['comments', id] });
-      queryClient.invalidateQueries({ queryKey: ['post', id] }); // Update comment count
-      toast.success('댓글이 삭제되었습니다.');
-    },
-    onError: () => toast.error('댓글 삭제에 실패했습니다.'),
-  });
-
-  if (isPostLoading) {
-    return <PostDetailSkeleton />;
-  }
+  if (isPostLoading) return <PostDetailSkeleton />;
 
   if (!post) {
     return (
@@ -215,16 +192,12 @@ export default function PostDetail() {
           {/* Author & Meta */}
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-3">
-              <UserAvatar
-                src={post.author.profileImageUrl}
-                name={post.author.name}
-                className="h-12 w-12"
-              />
+              <UserAvatar src={post.author.profileImageUrl} name={post.author.name} className="h-12 w-12" />
               <div>
                 <p className="font-medium">{post.author.name}</p>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <span>{post.author.trackName}</span>
-                  <span>•</span>
+                  <span>·</span>
                   <span>{timeAgo}</span>
                 </div>
               </div>
@@ -234,21 +207,14 @@ export default function PostDetail() {
               {post.isAuthor && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreHorizontal className="h-5 w-5" />
-                    </Button>
+                    <Button variant="ghost" size="icon"><MoreHorizontal className="h-5 w-5" /></Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => router.push(`/post/${post.id}/edit`)}>
-                      <Edit className="h-4 w-4 mr-2" />
-                      수정
+                      <Edit className="h-4 w-4 mr-2" />수정
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setDeleteDialogOpen(true)}
-                      className="text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      삭제
+                    <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive">
+                      <Trash2 className="h-4 w-4 mr-2" />삭제
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -268,12 +234,7 @@ export default function PostDetail() {
                   const resolvedSrc = resolveImageSrc(src);
                   return (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={resolvedSrc}
-                      alt={alt}
-                      className="rounded-lg shadow-sm border border-border/50 max-h-[500px] object-contain my-4"
-                      {...props}
-                    />
+                    <img src={resolvedSrc} alt={alt} className="rounded-lg shadow-sm border border-border/50 max-h-[500px] object-contain my-4" {...props} />
                   );
                 },
               }}
@@ -287,27 +248,48 @@ export default function PostDetail() {
             <div className="flex items-center gap-4 text-muted-foreground">
               <button
                 onClick={() => likeMutation.mutate()}
-                className={cn(
-                  'flex items-center gap-1.5 text-sm transition-colors hover:text-rose-500',
-                  post.isReacted && 'text-rose-500'
-                )}
+                className={cn('flex items-center gap-1.5 text-sm transition-colors hover:text-rose-500', post.isReacted && 'text-rose-500')}
                 disabled={likeMutation.isPending}
               >
                 <Heart className={cn('h-5 w-5', post.isReacted && 'fill-current')} />
                 <span>{post.reactionCount}</span>
               </button>
               <div className="flex items-center gap-1.5 text-sm">
-                <MessageCircle className="h-5 w-5" />
-                <span>{post.commentCount}</span>
+                <MessageCircle className="h-5 w-5" /><span>{post.commentCount}</span>
               </div>
               <div className="flex items-center gap-1.5 text-sm">
-                <Eye className="h-5 w-5" />
-                <span>{post.viewCount}</span>
+                <Eye className="h-5 w-5" /><span>{post.viewCount}</span>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Post Navigation (이전/다음 게시글) */}
+      {((post as any).previousPost || (post as any).nextPost) && (
+        <Card>
+          <CardContent className="p-4 flex flex-col gap-2">
+            {(post as any).previousPost && (
+              <button
+                onClick={() => router.push(`/post/${(post as any).previousPost.previousPostId}`)}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
+              >
+                <ChevronUp className="h-4 w-4 flex-shrink-0" />
+                <span className="truncate">이전글: {(post as any).previousPost.previousPostTitle}</span>
+              </button>
+            )}
+            {(post as any).nextPost && (
+              <button
+                onClick={() => router.push(`/post/${(post as any).nextPost.nextPostId}`)}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
+              >
+                <ChevronDown className="h-4 w-4 flex-shrink-0" />
+                <span className="truncate">다음글: {(post as any).nextPost.nextPostTitle}</span>
+              </button>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Comments Section */}
       <Card>
@@ -316,23 +298,19 @@ export default function PostDetail() {
 
           {/* Comment Input */}
           <div className="flex gap-3 mb-6">
-            <UserAvatar
-              src={null}
-              name="나"
-              className="h-10 w-10 flex-shrink-0"
-            />
+            <UserAvatar src={user?.profileImageUrl} name={user?.name || '나'} className="h-10 w-10 flex-shrink-0" />
             <div className="flex-1">
-              <Textarea
-                placeholder="댓글을 입력하세요..."
+              <MentionTextarea
                 value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                className="min-h-[80px] resize-none mb-2"
+                onChange={setCommentText}
+                onMentionChange={setMentionUserIds}
+                placeholder="댓글을 입력하세요... (@로 멘션)"
               />
-              <div className="flex justify-end">
+              <div className="flex justify-end mt-2">
                 <Button
                   variant="linearPrimary"
                   size="sm"
-                  onClick={() => commentMutation.mutate(commentText)}
+                  onClick={() => commentMutation.mutate({ content: commentText, mentionIds: mentionUserIds })}
                   disabled={!commentText.trim() || commentMutation.isPending}
                   className="gap-2"
                 >
@@ -356,7 +334,8 @@ export default function PostDetail() {
                 <CommentItem
                   key={comment.id}
                   comment={comment}
-                  onDelete={() => deleteCommentMutation.mutate(comment.id)}
+                  postId={Number(id)}
+                  currentUserId={user?.id}
                 />
               ))
             )}
@@ -375,59 +354,349 @@ export default function PostDetail() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => deletePostMutation.mutate()} 
-              className="bg-destructive text-destructive-foreground"
-            >
+            <AlertDialogAction onClick={() => deletePostMutation.mutate()} className="bg-destructive text-destructive-foreground">
               삭제
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Bottom padding for mobile nav */}
       <div className="h-20 lg:h-0" />
     </div>
   );
 }
 
-function CommentItem({ comment, onDelete }: { comment: Comment; onDelete: () => void }) {
+function CommentItem({ comment, postId, currentUserId, depth = 0 }: {
+  comment: Comment;
+  postId: number;
+  currentUserId?: number;
+  depth?: number;
+}) {
+  const queryClient = useQueryClient();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(comment.content);
+  const [isReplying, setIsReplying] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const isAuthor = currentUserId ? comment.author.id === currentUserId : false;
+
   const timeAgo = formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true, locale: ko });
+
+  // Comment Like
+  const likeMutation = useMutation({
+    mutationFn: async () => {
+      if (comment.isReacted) {
+        await reactionApi.removeReaction({ targetType: 'COMMENT', targetId: comment.id, reactionType: 'LIKE' });
+      } else {
+        await reactionApi.addReaction({ targetType: 'COMMENT', targetId: comment.id, reactionType: 'LIKE' });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['comments', String(postId)] });
+    },
+    onError: () => toast.error('좋아요 처리에 실패했습니다.'),
+  });
+
+  // Comment Edit
+  const editMutation = useMutation({
+    mutationFn: (content: string) => commentApi.updateComment(comment.id, { content }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['comments', String(postId)] });
+      setIsEditing(false);
+      toast.success('댓글이 수정되었습니다.');
+    },
+    onError: () => toast.error('댓글 수정에 실패했습니다.'),
+  });
+
+  // Comment Delete
+  const deleteMutation = useMutation({
+    mutationFn: () => commentApi.deleteComment(comment.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['comments', String(postId)] });
+      queryClient.invalidateQueries({ queryKey: ['post', String(postId)] });
+      toast.success('댓글이 삭제되었습니다.');
+    },
+    onError: () => toast.error('댓글 삭제에 실패했습니다.'),
+  });
+
+  // Reply
+  const replyMutation = useMutation({
+    mutationFn: (content: string) =>
+      commentApi.createComment({ postId, parentId: comment.id, content }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['comments', String(postId)] });
+      queryClient.invalidateQueries({ queryKey: ['post', String(postId)] });
+      setIsReplying(false);
+      setReplyText('');
+      toast.success('답글이 작성되었습니다.');
+    },
+    onError: () => toast.error('답글 작성에 실패했습니다.'),
+  });
 
   return (
     <div className={cn('flex gap-3', comment.isDeleted && 'opacity-60')}>
-      <UserAvatar
-        src={comment.author.profileImageUrl}
-        name={comment.author.name}
-        className="h-9 w-9 flex-shrink-0"
-      />
-      <div className="flex-1">
+      <UserAvatar src={comment.author.profileImageUrl} name={comment.author.name} className="h-9 w-9 flex-shrink-0" />
+      <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="font-medium text-sm">{comment.author.name}</span>
+            {comment.author.trackName && (
+              <span className="text-xs text-muted-foreground">{comment.author.trackName}</span>
+            )}
             <span className="text-xs text-muted-foreground">{timeAgo}</span>
           </div>
-          {/* comment.isAuthor check is tricky without client-side user info, relying on mapping/assumption for now or API returning it in future */}
-          {!comment.isDeleted && (
-             // Placeholder for permission check: comment.isAuthor
-            <Button variant="ghost" size="sm" onClick={onDelete} className="h-7 px-2 text-muted-foreground">
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
+          {!comment.isDeleted && isAuthor && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground">
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => { setIsEditing(true); setEditText(comment.content); }}>
+                  <Pencil className="h-3.5 w-3.5 mr-2" />수정
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive">
+                  <Trash2 className="h-3.5 w-3.5 mr-2" />삭제
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
-        <p className={cn('text-sm mt-1', comment.isDeleted && 'text-muted-foreground italic')}>
-          {comment.content}
-        </p>
-        
-        {/* Render Replies */}
-        {comment.replies && comment.replies.length > 0 && (
-            <div className="mt-3 pl-4 border-l-2 border-muted space-y-3">
-                {comment.replies.map((reply: Comment) => (
-                    <CommentItem key={reply.id} comment={reply} onDelete={onDelete} />
-                ))}
+
+        {/* Comment Content or Edit Mode */}
+        {isEditing ? (
+          <div className="mt-2">
+            <Textarea
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              className="min-h-[60px] resize-none text-sm"
+            />
+            <div className="flex gap-2 mt-2 justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>
+                <X className="h-3.5 w-3.5 mr-1" />취소
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => editMutation.mutate(editText)}
+                disabled={!editText.trim() || editMutation.isPending}
+              >
+                {editMutation.isPending ? '수정 중...' : '수정'}
+              </Button>
             </div>
+          </div>
+        ) : (
+          <p className={cn('text-sm mt-1 whitespace-pre-wrap', comment.isDeleted && 'text-muted-foreground italic')}>
+            {comment.isDeleted ? '삭제된 댓글입니다.' : renderContentWithMentions(comment.content, comment.mentionedUsers)}
+          </p>
         )}
+
+        {/* Comment Actions */}
+        {!comment.isDeleted && !isEditing && (
+          <div className="flex items-center gap-3 mt-2">
+            <button
+              onClick={() => likeMutation.mutate()}
+              className={cn('flex items-center gap-1 text-xs transition-colors hover:text-rose-500', comment.isReacted && 'text-rose-500')}
+              disabled={likeMutation.isPending}
+            >
+              <Heart className={cn('h-3.5 w-3.5', comment.isReacted && 'fill-current')} />
+              {comment.reactionCount > 0 && <span>{comment.reactionCount}</span>}
+            </button>
+            {depth === 0 && (
+              <button
+                onClick={() => setIsReplying(!isReplying)}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Reply className="h-3.5 w-3.5" />
+                답글
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Reply Input */}
+        {isReplying && (
+          <div className="mt-3 flex gap-2">
+            <Textarea
+              placeholder="답글을 입력하세요..."
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              className="min-h-[60px] resize-none text-sm flex-1"
+            />
+            <div className="flex flex-col gap-1">
+              <Button
+                size="sm"
+                onClick={() => replyMutation.mutate(replyText)}
+                disabled={!replyText.trim() || replyMutation.isPending}
+              >
+                <Send className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => { setIsReplying(false); setReplyText(''); }}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Replies */}
+        {comment.replies && comment.replies.length > 0 && (
+          <div className="mt-3 pl-4 border-l-2 border-muted space-y-3">
+            {comment.replies.map((reply: Comment) => (
+              <CommentItem
+                key={reply.id}
+                comment={reply}
+                postId={postId}
+                currentUserId={currentUserId}
+                depth={depth + 1}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Delete Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>댓글 삭제</AlertDialogTitle>
+              <AlertDialogDescription>이 댓글을 삭제하시겠습니까?</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>취소</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteMutation.mutate()}
+                className="bg-destructive text-destructive-foreground"
+              >
+                삭제
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
+    </div>
+  );
+}
+
+function renderContentWithMentions(content: string, mentionedUsers?: Array<{ id: number; name: string }>) {
+  if (!mentionedUsers || mentionedUsers.length === 0) return content;
+
+  const mentionNames = mentionedUsers.map((u) => u.name);
+  const pattern = new RegExp(`@(${mentionNames.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g');
+  const parts = content.split(pattern);
+
+  return parts.map((part, i) =>
+    mentionNames.includes(part) ? (
+      <span key={i} className="text-primary font-medium">@{part}</span>
+    ) : (
+      part
+    )
+  );
+}
+
+function MentionTextarea({
+  value,
+  onChange,
+  onMentionChange,
+  placeholder,
+  className,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onMentionChange: (ids: number[]) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionIds, setMentionIds] = useState<number[]>([]);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const { data: mentionUsers } = useQuery({
+    queryKey: ['mention-users'],
+    queryFn: () => userApi.getMentionUsers({ size: 50 }),
+    enabled: showMentions,
+    staleTime: 60 * 1000,
+  });
+
+  const filteredUsers = (Array.isArray(mentionUsers) ? mentionUsers : []).filter(
+    (u: UserSummary) => u.name.toLowerCase().includes(mentionQuery.toLowerCase())
+  );
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value;
+    onChange(newValue);
+
+    const cursorPos = e.target.selectionStart;
+    const textBeforeCursor = newValue.slice(0, cursorPos);
+    const atMatch = textBeforeCursor.match(/@(\S*)$/);
+
+    if (atMatch) {
+      setShowMentions(true);
+      setMentionQuery(atMatch[1]);
+    } else {
+      setShowMentions(false);
+    }
+  };
+
+  const selectMention = (user: UserSummary) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const cursorPos = textarea.selectionStart;
+    const textBeforeCursor = value.slice(0, cursorPos);
+    const atMatch = textBeforeCursor.match(/@(\S*)$/);
+
+    if (atMatch) {
+      const beforeAt = textBeforeCursor.slice(0, atMatch.index);
+      const afterCursor = value.slice(cursorPos);
+      const newValue = `${beforeAt}@${user.name} ${afterCursor}`;
+      onChange(newValue);
+
+      const newIds = [...mentionIds, user.userId];
+      setMentionIds(newIds);
+      onMentionChange(newIds);
+
+      setShowMentions(false);
+
+      setTimeout(() => {
+        const newCursorPos = beforeAt.length + user.name.length + 2;
+        textarea.focus();
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+      }, 0);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <Textarea
+        ref={textareaRef}
+        placeholder={placeholder}
+        value={value}
+        onChange={handleChange}
+        onBlur={() => setTimeout(() => setShowMentions(false), 200)}
+        className={cn('min-h-[80px] resize-none', className)}
+      />
+      {showMentions && filteredUsers.length > 0 && (
+        <div className="absolute left-0 right-0 bottom-full mb-1 bg-popover border border-border rounded-md shadow-md max-h-[160px] overflow-y-auto z-50">
+          {filteredUsers.slice(0, 8).map((u: UserSummary) => (
+            <button
+              key={u.userId}
+              type="button"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors text-left"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                selectMention(u);
+              }}
+            >
+              <UserAvatar src={u.profileImageUrl} name={u.name} className="h-6 w-6" />
+              <span className="font-medium">{u.name}</span>
+              {u.trackName && (
+                <span className="text-xs text-muted-foreground">{u.trackName}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

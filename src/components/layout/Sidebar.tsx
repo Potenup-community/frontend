@@ -7,11 +7,19 @@ import { UserAvatar } from '@/components/ui/UserAvatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Users, Flame, Hash, Construction } from 'lucide-react';
+import { Users, Flame, Hash, FileText } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { dashboardApi } from '@/lib/api';
 
 export function Sidebar() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+
+  const { data: dashboard } = useQuery({
+    queryKey: ['dashboard-overview'],
+    queryFn: () => dashboardApi.getOverview(),
+    staleTime: 5 * 60 * 1000, // 5분 캐시
+  });
 
   if (isLoading) {
     return <SidebarSkeleton />;
@@ -74,18 +82,34 @@ export function Sidebar() {
           </Card>
         )}
 
-        {/* Trending Posts - Coming Soon */}
+        {/* Community Stats */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Flame className="h-4 w-4 text-rose-500 fill-rose-500" />
-              지금 뜨는 이야기
+              커뮤니티 현황
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col items-center py-4 text-center">
-              <Construction className="h-8 w-8 text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">기능 추가예정</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <FileText className="h-4 w-4 text-primary" />
+                </div>
+                <div className="text-lg font-bold">
+                  {dashboard?.totalPostCount ?? '-'}
+                </div>
+                <div className="text-xs text-muted-foreground">전체 게시글</div>
+              </div>
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <Users className="h-4 w-4 text-blue-500" />
+                </div>
+                <div className="text-lg font-bold">
+                  {dashboard?.totalUsers ?? '-'}
+                </div>
+                <div className="text-xs text-muted-foreground">전체 멤버</div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -99,9 +123,15 @@ export function Sidebar() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col items-center py-4 text-center">
-              <Construction className="h-8 w-8 text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">기능 추가예정</p>
+            <div className="flex flex-wrap gap-2">
+              {['개발', '취업', '스터디', 'AI'].map((tag) => (
+                <span
+                  key={tag}
+                  className="px-2.5 py-1 text-xs font-medium rounded-full bg-muted text-muted-foreground"
+                >
+                  #{tag}
+                </span>
+              ))}
             </div>
           </CardContent>
         </Card>
