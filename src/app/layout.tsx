@@ -7,6 +7,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "PotenUp",
   description: "PotenUp Community",
+  icons: {
+    icon: '/favicon.png',
+  },
 };
 
 export default function RootLayout({

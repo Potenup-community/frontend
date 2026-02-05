@@ -210,6 +210,7 @@ export interface PostSummary {
   author: {
     id: number;
     name: string;
+    trackName?: string;
     profileImageUrl?: string;
   };
   reactionCount: number;
@@ -747,11 +748,12 @@ export const scheduleApi = {
 
 export const adminApi = {
   // 유저 목록 조회
-  getUsers: (params?: { status?: string; page?: number; size?: number }) =>
+  getUsers: (params?: { status?: string; requestStatus?: string; trackId?: number; page?: number; size?: number }) =>
     api.get<PaginatedResponse<{
-      id: number;
+      userId: number;
       name: string;
       email: string;
+      phoneNumber?: string;
       trackId: number;
       trackName: string;
       profileImageUrl?: string;
@@ -764,12 +766,19 @@ export const adminApi = {
     api.get<{ count: number }>('/admin/users/count', status ? { status } : undefined),
 
   // 유저 승인/거절 (단건)
-  decideUser: (userId: number, decision: 'APPROVED' | 'REJECTED') =>
-    api.put<void>(`/admin/users/${userId}/decision`, { decision }),
+  decideUser: (userId: number, decision: 'ACCEPTED' | 'REJECTED', role?: string) =>
+    api.put<void>(`/admin/users/${userId}/decision`, {
+      requestStatus: decision,
+      ...(decision === 'ACCEPTED' && { role: role || 'MEMBER' }),
+    }),
 
   // 유저 승인/거절 (다건)
-  decideUsers: (decisions: Array<{ userId: number; decision: 'APPROVED' | 'REJECTED' }>) =>
-    api.put<void>('/admin/users/decisions', { decisions }),
+  decideUsers: (ids: number[], decision: 'ACCEPTED' | 'REJECTED', role?: string) =>
+    api.put<void>('/admin/users/decisions', {
+      ids,
+      requestStatus: decision,
+      ...(decision === 'ACCEPTED' && { role: role || 'MEMBER' }),
+    }),
 
   // 트랙 목록 조회 (회원가입용)
   getTracks: () =>
@@ -777,7 +786,7 @@ export const adminApi = {
 
   // 전체 트랙 목록 조회 (Admin 전용)
   getAllTracks: () =>
-    api.get<{ content: AdminTrack[] }>('/admin/tracks/all'),
+    api.get<{ content: AdminTrack[] }>('/admin/tracks'),
 
   // 트랙 생성
   createTrack: (data: TrackCreateRequest) =>

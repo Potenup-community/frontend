@@ -10,20 +10,19 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-[0_1px_0_0_rgba(255,255,255,0.1)_inset,0_1px_2px_0_rgba(0,0,0,0.1)] hover:bg-primary/90 border border-primary/10",
+          "bg-background text-foreground hover:text-orange-500 hover:bg-orange-50/50 border-none shadow-none",
         destructive:
-          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 border border-destructive/10",
+          "bg-background text-destructive hover:bg-destructive/10 border-none shadow-none",
         outline:
-          "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground hover:border-accent",
+          "bg-background text-foreground hover:text-orange-500 hover:bg-orange-50/50 border-none shadow-none",
         secondary:
-          "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 border border-secondary/10",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+          "bg-background text-foreground border-[1.5px] border-foreground shadow-sm hover:bg-orange-500 hover:border-orange-500 hover:text-white",
+        ghost: "hover:bg-orange-50/50 hover:text-orange-500 transition-colors",
         link: "text-primary underline-offset-4 hover:underline",
-        // Linear Style Special Variants
         linear: 
-          "bg-gradient-to-b from-white to-gray-50 text-slate-900 border border-gray-200 shadow-[0_1px_2px_rgba(0,0,0,0.06),0_1px_0_rgba(255,255,255,0.5)_inset] hover:bg-gray-50 hover:border-gray-300 dark:from-slate-800 dark:to-slate-900 dark:text-slate-100 dark:border-slate-700 dark:shadow-[0_1px_0_rgba(255,255,255,0.05)_inset]",
+          "bg-background text-foreground hover:text-orange-500 hover:bg-orange-50/50 border-none shadow-none",
         linearPrimary:
-          "bg-gradient-to-b from-indigo-500 to-indigo-600 text-white border border-indigo-600 shadow-[0_1px_2px_rgba(0,0,0,0.12),0_1px_0_rgba(255,255,255,0.15)_inset] hover:from-indigo-500 hover:to-indigo-600 hover:shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_0_rgba(255,255,255,0.2)_inset]",
+          "bg-background text-foreground hover:text-orange-500 hover:bg-orange-50/50 border-none shadow-none",
       },
       size: {
         default: "h-9 px-4 py-2",

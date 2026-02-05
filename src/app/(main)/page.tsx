@@ -17,6 +17,23 @@ function IndexContent() {
   const topic = searchParams.get('topic')?.toUpperCase() || undefined;
   const isMobile = useIsMobile();
 
+  const getHeaderInfo = () => {
+    switch (topic) {
+      case 'NOTICE':
+        return { title: '공지사항', desc: 'PotenUp의 새로운 소식과 안내를 확인하세요' };
+      case 'KNOWLEDGE':
+        return { title: '지식줍줍', desc: '개발 지식과 유용한 정보를 공유합니다' };
+      case 'EMPLOYMENT_TIP':
+        return { title: '취업팁', desc: '취업 성공을 위한 꿀팁을 나눠보세요' };
+      case 'SMALL_TALK':
+        return { title: '자유게시판', desc: '자유롭게 이야기를 나누는 공간입니다' };
+      default:
+        return { title: '홈', desc: 'PotenUp의 모든 소식을 확인하세요' };
+    }
+  };
+
+  const headerInfo = getHeaderInfo();
+
   const fetchPosts = async ({ pageParam = 0 }) => {
     const params: any = {
       page: pageParam,
@@ -72,7 +89,14 @@ function IndexContent() {
 
   return (
     <div className="space-y-6">
-      {/* Topic Filter - PC uses CategoryTabs, Mobile uses TopicTabs */}
+      {/* Page Header */}
+      <div>
+        <h1 className="text-2xl font-bold">{headerInfo.title}</h1>
+        <p className="text-sm text-muted-foreground mt-1">{headerInfo.desc}</p>
+      </div>
+
+      {/* Topic Filter - PC uses CategoryTabs (for sub-nav), Mobile uses TopicTabs (for full nav if needed, but header handles main nav now) */}
+      {/* CategoryTabs only renders for KNOWLEDGE/EMPLOYMENT_TIP now as sub-nav */}
       <div className="flex items-center justify-between gap-4">
         {isMobile ? <TopicTabs /> : <CategoryTabs />}
       </div>

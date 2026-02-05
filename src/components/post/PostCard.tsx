@@ -37,7 +37,9 @@ export function PostCard({ post, className }: PostCardProps) {
                 className="h-10 w-10 flex-shrink-0 ring-2 ring-background"
               />
               <div className="min-w-0">
-                <p className="font-medium text-sm truncate">{post.author.name}</p>
+                <p className="font-medium text-sm truncate">
+                  {post.author.trackName ? `[${post.author.trackName}] ` : ''}{post.author.name}
+                </p>
                 <p className="text-xs text-muted-foreground">{timeAgo}</p>
               </div>
             </div>

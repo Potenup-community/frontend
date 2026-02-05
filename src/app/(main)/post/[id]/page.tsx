@@ -2,9 +2,10 @@
 
 import { useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Heart, MessageCircle, Eye, MoreHorizontal, Trash2, Edit, Send, Pencil, X, Reply, ChevronDown, ChevronUp, AtSign } from 'lucide-react';
+import { ArrowLeft, Heart, MessageCircle, MoreHorizontal, Trash2, Edit, Send, Pencil, X, Reply, ChevronDown, ChevronUp } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { UserAvatar } from '@/components/ui/UserAvatar';
@@ -32,7 +33,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, postApi, commentApi, reactionApi, userApi, Post, Comment, UserSummary } from '@/lib/api';
+import { postApi, commentApi, reactionApi, userApi, Post, Comment, UserSummary } from '@/lib/api';
 import { API_BASE_URL } from '@/lib/constants';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -47,11 +48,19 @@ export default function PostDetail() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const resolveImageSrc = (src: string) => {
+    if (!src) return '';
     if (src.startsWith('data:') || src.startsWith('blob:')) return src;
+    // Contains /api/v1/ anywhere (handles "localhost:8080/api/v1/..." without protocol)
+    const apiIndex = src.indexOf('/api/v1/');
+    if (apiIndex !== -1) return src.slice(apiIndex);
+    // Full URL - extract pathname
     if (src.startsWith('http://') || src.startsWith('https://')) {
-      const apiIndex = src.indexOf('/api/v1/');
-      if (apiIndex !== -1) return src.slice(apiIndex);
-      return src;
+      try {
+        const url = new URL(src);
+        return `/api/v1${url.pathname}${url.search}`;
+      } catch {
+        return src;
+      }
     }
     if (src.startsWith('/api/')) return src;
     if (src.startsWith('/files/')) return `${API_BASE_URL}${src}`;
@@ -111,6 +120,7 @@ export default function PostDetail() {
         isDeleted: c.isDeleted,
         createdAt: c.createdAt,
         updatedAt: c.createdAt,
+        mentionedUsers: c.mentionedUsers,
         replies: c.replies?.map(mapComment),
       });
       return res.contents.map(mapComment);
@@ -196,8 +206,8 @@ export default function PostDetail() {
               <div>
                 <p className="font-medium">{post.author.name}</p>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>{post.author.trackName}</span>
-                  <span>·</span>
+                  {post.author.trackName && <span>{post.author.trackName}</span>}
+                  {post.author.trackName && <span>·</span>}
                   <span>{timeAgo}</span>
                 </div>
               </div>
@@ -226,15 +236,25 @@ export default function PostDetail() {
           <h2 className="text-xl font-bold mb-4">{post.title}</h2>
           <div className="prose prose-sm max-w-none mb-6 whitespace-pre-wrap">
             <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
+              remarkPlugins={[remarkGfm, remarkBreaks]}
               urlTransform={(value) => value}
               components={{
                 img: ({ src, alt, ...props }: any) => {
                   if (!src) return null;
                   const resolvedSrc = resolveImageSrc(src);
+                  console.log('[Image Debug] raw:', src, '→ resolved:', resolvedSrc);
                   return (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={resolvedSrc} alt={alt} className="rounded-lg shadow-sm border border-border/50 max-h-[500px] object-contain my-4" {...props} />
+                    <img
+                      src={resolvedSrc}
+                      alt={alt}
+                      className="rounded-lg shadow-sm border border-border/50 max-h-[500px] object-contain my-4"
+                      onError={(e) => {
+                        console.error('[Image Error] Failed to load:', resolvedSrc, 'original:', src);
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                      {...props}
+                    />
                   );
                 },
               }}
@@ -256,9 +276,6 @@ export default function PostDetail() {
               </button>
               <div className="flex items-center gap-1.5 text-sm">
                 <MessageCircle className="h-5 w-5" /><span>{post.commentCount}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-sm">
-                <Eye className="h-5 w-5" /><span>{post.viewCount}</span>
               </div>
             </div>
           </div>
@@ -297,7 +314,7 @@ export default function PostDetail() {
           <h3 className="font-semibold mb-4">댓글 {post.commentCount}개</h3>
 
           {/* Comment Input */}
-          <div className="flex gap-3 mb-6">
+          <div className="flex gap-3 mb-4">
             <UserAvatar src={user?.profileImageUrl} name={user?.name || '나'} className="h-10 w-10 flex-shrink-0" />
             <div className="flex-1">
               <MentionTextarea
@@ -322,24 +339,22 @@ export default function PostDetail() {
           </div>
 
           {/* Comments List */}
-          <div className="space-y-4">
-            {isCommentsLoading ? (
-              <p className="text-center text-muted-foreground py-8">댓글을 불러오는 중...</p>
-            ) : comments?.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                아직 댓글이 없습니다. 첫 댓글을 작성해보세요!
-              </p>
-            ) : (
-              comments?.map((comment: Comment) => (
-                <CommentItem
-                  key={comment.id}
-                  comment={comment}
-                  postId={Number(id)}
-                  currentUserId={user?.id}
-                />
-              ))
-            )}
-          </div>
+          {(isCommentsLoading || (comments && comments.length > 0)) && (
+            <div className="space-y-4 pt-4 border-t">
+              {isCommentsLoading ? (
+                <p className="text-center text-muted-foreground py-4">댓글을 불러오는 중...</p>
+              ) : (
+                comments?.map((comment: Comment) => (
+                  <CommentItem
+                    key={comment.id}
+                    comment={comment}
+                    postId={Number(id)}
+                    currentUserId={user?.id}
+                  />
+                ))
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -440,10 +455,9 @@ function CommentItem({ comment, postId, currentUserId, depth = 0 }: {
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-sm">{comment.author.name}</span>
-            {comment.author.trackName && (
-              <span className="text-xs text-muted-foreground">{comment.author.trackName}</span>
-            )}
+            <span className="font-medium text-sm">
+              {comment.author.trackName ? `[${comment.author.trackName}] ` : ''}{comment.author.name}
+            </span>
             <span className="text-xs text-muted-foreground">{timeAgo}</span>
           </div>
           {!comment.isDeleted && isAuthor && (
@@ -581,12 +595,15 @@ function renderContentWithMentions(content: string, mentionedUsers?: Array<{ id:
   if (!mentionedUsers || mentionedUsers.length === 0) return content;
 
   const mentionNames = mentionedUsers.map((u) => u.name);
-  const pattern = new RegExp(`@(${mentionNames.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g');
+  const escaped = mentionNames.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const pattern = new RegExp('@(' + escaped.join('|') + ')', 'g');
   const parts = content.split(pattern);
 
   return parts.map((part, i) =>
     mentionNames.includes(part) ? (
-      <span key={i} className="text-primary font-medium">@{part}</span>
+      <span key={i} className="text-primary bg-primary/10 px-1.5 py-0.5 rounded-md font-medium mx-0.5">
+        @{part}
+      </span>
     ) : (
       part
     )
@@ -638,7 +655,7 @@ function MentionTextarea({
     }
   };
 
-  const selectMention = (user: UserSummary) => {
+  const selectMention = (mentionUser: UserSummary) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
@@ -649,17 +666,17 @@ function MentionTextarea({
     if (atMatch) {
       const beforeAt = textBeforeCursor.slice(0, atMatch.index);
       const afterCursor = value.slice(cursorPos);
-      const newValue = `${beforeAt}@${user.name} ${afterCursor}`;
+      const newValue = `${beforeAt}@${mentionUser.name} ${afterCursor}`;
       onChange(newValue);
 
-      const newIds = [...mentionIds, user.userId];
+      const newIds = [...mentionIds, mentionUser.userId];
       setMentionIds(newIds);
       onMentionChange(newIds);
 
       setShowMentions(false);
 
       setTimeout(() => {
-        const newCursorPos = beforeAt.length + user.name.length + 2;
+        const newCursorPos = beforeAt.length + mentionUser.name.length + 2;
         textarea.focus();
         textarea.setSelectionRange(newCursorPos, newCursorPos);
       }, 0);
@@ -690,9 +707,6 @@ function MentionTextarea({
             >
               <UserAvatar src={u.profileImageUrl} name={u.name} className="h-6 w-6" />
               <span className="font-medium">{u.name}</span>
-              {u.trackName && (
-                <span className="text-xs text-muted-foreground">{u.trackName}</span>
-              )}
             </button>
           ))}
         </div>

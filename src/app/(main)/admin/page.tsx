@@ -16,6 +16,8 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Phone,
+  Filter,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,6 +45,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, adminApi, studyApi, scheduleApi, AdminTrack, Study, Schedule, ScheduleCreateRequest } from '@/lib/api';
@@ -51,9 +61,10 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 
 interface AdminUser {
-  id: number;
+  userId: number;
   name: string;
   email: string;
+  phoneNumber?: string;
   trackId: number;
   trackName: string;
   profileImageUrl?: string;
@@ -69,7 +80,7 @@ interface AdminUsersResponse {
   totalElements?: number;
 }
 
-type DecisionType = 'APPROVED' | 'REJECTED';
+type DecisionType = 'ACCEPTED' | 'REJECTED';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -164,37 +175,77 @@ function UserManagementTab() {
   const [decisionType, setDecisionType] = useState<DecisionType | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('pending');
+  const [selectedTrack, setSelectedTrack] = useState<number>(0);
+  const [selectedRole, setSelectedRole] = useState<string>('MEMBER');
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+
+  const { data: tracks } = useQuery({
+    queryKey: ['admin', 'tracks', 'active'],
+    queryFn: async () => {
+      const res = await adminApi.getTracks();
+      return res.content || [];
+    },
+  });
 
   const { data: pendingUsers, isLoading: pendingLoading } = useQuery({
-    queryKey: ['admin', 'users', 'PENDING'],
+    queryKey: ['admin', 'users', 'PENDING', selectedTrack],
     queryFn: async () => {
-      const res = await api.get<AdminUsersResponse>('/admin/users', { status: 'PENDING' });
+      const res = await adminApi.getUsers({
+        requestStatus: 'PENDING',
+        trackId: selectedTrack || undefined,
+        page: 0,
+        size: 20
+      });
       return res.content || [];
     },
   });
 
   const { data: approvedUsers, isLoading: approvedLoading } = useQuery({
-    queryKey: ['admin', 'users', 'APPROVED'],
+    queryKey: ['admin', 'users', 'APPROVED', selectedTrack],
     queryFn: async () => {
-      const res = await api.get<AdminUsersResponse>('/admin/users', { status: 'APPROVED' });
+      const res = await adminApi.getUsers({
+        requestStatus: 'ACCEPTED',
+        trackId: selectedTrack || undefined,
+        page: 0,
+        size: 20
+      });
       return res.content || [];
     },
   });
 
   const decisionMutation = useMutation({
-    mutationFn: async ({ userId, decision }: { userId: number; decision: DecisionType }) => {
-      await adminApi.decideUser(userId, decision);
+    mutationFn: async ({ userId, decision, role }: { userId: number; decision: DecisionType; role: string }) => {
+      await adminApi.decideUser(userId, decision, role);
     },
     onSuccess: (_, variables) => {
-      const action = variables.decision === 'APPROVED' ? '승인' : '거절';
+      const action = variables.decision === 'ACCEPTED' ? '승인' : '거절';
       toast.success(`유저가 ${action}되었습니다.`);
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       setDialogOpen(false);
       setSelectedUser(null);
       setDecisionType(null);
+      setSelectedRole('MEMBER');
     },
     onError: () => {
       toast.error('처리 중 오류가 발생했습니다.');
+    },
+  });
+
+  const bulkDecisionMutation = useMutation({
+    mutationFn: async ({ ids, decision, role }: { ids: number[]; decision: DecisionType; role: string }) => {
+      await adminApi.decideUsers(ids, decision, role);
+    },
+    onSuccess: (_, variables) => {
+      const action = variables.decision === 'ACCEPTED' ? '승인' : '거절';
+      toast.success(`${variables.ids.length}명의 유저가 ${action}되었습니다.`);
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      setSelectedUserIds([]);
+      setDialogOpen(false);
+      setDecisionType(null);
+      setSelectedRole('MEMBER');
+    },
+    onError: () => {
+      toast.error('일괄 처리 중 오류가 발생했습니다.');
     },
   });
 
@@ -202,11 +253,45 @@ function UserManagementTab() {
     setSelectedUser(user);
     setDecisionType(decision);
     setDialogOpen(true);
+    setSelectedRole('MEMBER');
+  };
+
+  const handleBulkDecision = (decision: DecisionType) => {
+    if (selectedUserIds.length === 0) return;
+    setDecisionType(decision);
+    setDialogOpen(true);
+    setSelectedRole('MEMBER');
   };
 
   const confirmDecision = () => {
     if (selectedUser && decisionType) {
-      decisionMutation.mutate({ userId: selectedUser.id, decision: decisionType });
+      decisionMutation.mutate({
+        userId: selectedUser.userId,
+        decision: decisionType,
+        role: selectedRole
+      });
+    } else if (selectedUserIds.length > 0 && decisionType) {
+      bulkDecisionMutation.mutate({
+        ids: selectedUserIds,
+        decision: decisionType,
+        role: selectedRole
+      });
+    }
+  };
+
+  const toggleSelectAll = (checked: boolean) => {
+    if (checked && pendingUsers) {
+      setSelectedUserIds(pendingUsers.map(u => u.userId));
+    } else {
+      setSelectedUserIds([]);
+    }
+  };
+
+  const toggleSelectUser = (userId: number, checked: boolean) => {
+    if (checked) {
+      setSelectedUserIds(prev => [...prev, userId]);
+    } else {
+      setSelectedUserIds(prev => prev.filter(id => id !== userId));
     }
   };
 
@@ -215,7 +300,7 @@ function UserManagementTab() {
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-2 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-4">
@@ -241,94 +326,185 @@ function UserManagementTab() {
         </Card>
       </div>
 
-      {/* User List Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full">
-          <TabsTrigger value="pending" className="flex-1 gap-2">
-            <Clock className="h-4 w-4" />
-            승인 대기
-            {pendingCount > 0 && (
-              <Badge variant="destructive" className="ml-1">
-                {pendingCount}
-              </Badge>
+      {/* Main Content Area */}
+      <div className="space-y-4">
+        <Tabs value={activeTab} onValueChange={(val) => {
+          setActiveTab(val);
+          setSelectedUserIds([]);
+        }}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+            <TabsList>
+              <TabsTrigger value="pending" className="gap-2">
+                <Clock className="h-4 w-4" />
+                승인 대기
+                {pendingCount > 0 && (
+                  <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1.5">
+                    {pendingCount}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="approved" className="gap-2">
+                <CheckCircle className="h-4 w-4" />
+                승인된 유저
+              </TabsTrigger>
+            </TabsList>
+
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select
+                value={selectedTrack.toString()}
+                onValueChange={(value) => setSelectedTrack(Number(value))}
+              >
+                <SelectTrigger className="w-[180px] h-9">
+                  <SelectValue placeholder="트랙 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">전체 트랙</SelectItem>
+                  {tracks?.map((track) => (
+                    <SelectItem key={track.trackId} value={track.trackId.toString()}>
+                      {track.trackName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <TabsContent value="pending" className="mt-0">
+            {pendingLoading ? (
+              <UserListSkeleton />
+            ) : pendingUsers?.length === 0 ? (
+              <EmptyState
+                icon={Clock}
+                title="대기 중인 유저가 없습니다"
+                description="모든 가입 요청이 처리되었습니다."
+              />
+            ) : (
+              <div className="space-y-3">
+                {/* Action Toolbar */}
+                <Card className="border-muted bg-muted/30">
+                  <CardContent className="p-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={pendingUsers && selectedUserIds.length === pendingUsers.length && pendingUsers.length > 0}
+                        onCheckedChange={(checked) => toggleSelectAll(checked as boolean)}
+                        id="select-all"
+                      />
+                      <Label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+                        전체 선택 ({pendingUsers?.length}명)
+                      </Label>
+                    </div>
+
+                    {selectedUserIds.length > 0 && (
+                      <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-5 duration-200">
+                        <span className="text-sm text-muted-foreground mr-2 border-r pr-4 border-border">
+                          {selectedUserIds.length}명 선택됨
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
+                          onClick={() => handleBulkDecision('REJECTED')}
+                        >
+                          일괄 거절
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          className="h-8"
+                          onClick={() => handleBulkDecision('ACCEPTED')}
+                        >
+                          일괄 승인
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <div className="grid gap-3">
+                  {pendingUsers?.map((adminUser) => (
+                    <UserCard
+                      key={adminUser.userId}
+                      user={adminUser}
+                      onApprove={() => handleDecision(adminUser, 'ACCEPTED')}
+                      onReject={() => handleDecision(adminUser, 'REJECTED')}
+                      showActions
+                      isChecked={selectedUserIds.includes(adminUser.userId)}
+                      onToggleSelect={(checked) => toggleSelectUser(adminUser.userId, checked)}
+                    />
+                  ))}
+                </div>
+              </div>
             )}
-          </TabsTrigger>
-          <TabsTrigger value="approved" className="flex-1 gap-2">
-            <CheckCircle className="h-4 w-4" />
-            승인된 유저
-          </TabsTrigger>
-        </TabsList>
+          </TabsContent>
 
-        <TabsContent value="pending" className="mt-4">
-          {pendingLoading ? (
-            <UserListSkeleton />
-          ) : pendingUsers?.length === 0 ? (
-            <EmptyState
-              icon={Clock}
-              title="대기 중인 유저가 없습니다"
-              description="모든 가입 요청이 처리되었습니다."
-            />
-          ) : (
-            <div className="space-y-3">
-              {pendingUsers?.map((adminUser) => (
-                <UserCard
-                  key={adminUser.id}
-                  user={adminUser}
-                  onApprove={() => handleDecision(adminUser, 'APPROVED')}
-                  onReject={() => handleDecision(adminUser, 'REJECTED')}
-                  showActions
-                />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="approved" className="mt-4">
-          {approvedLoading ? (
-            <UserListSkeleton />
-          ) : approvedUsers?.length === 0 ? (
-            <EmptyState
-              icon={Users}
-              title="승인된 유저가 없습니다"
-              description="아직 승인된 유저가 없습니다."
-            />
-          ) : (
-            <div className="space-y-3">
-              {approvedUsers?.map((adminUser) => (
-                <UserCard key={adminUser.id} user={adminUser} />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="approved" className="mt-0">
+            {approvedLoading ? (
+              <UserListSkeleton />
+            ) : approvedUsers?.length === 0 ? (
+              <EmptyState
+                icon={Users}
+                title="승인된 유저가 없습니다"
+                description="아직 승인된 유저가 없습니다."
+              />
+            ) : (
+              <div className="grid gap-3 mt-4">
+                {approvedUsers?.map((adminUser) => (
+                  <UserCard key={adminUser.userId} user={adminUser} />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
 
       {/* Confirmation Dialog */}
       <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {decisionType === 'APPROVED' ? '유저 승인' : '유저 거절'}
+              {selectedUserIds.length > 0 && !selectedUser 
+                ? `일괄 ${decisionType === 'ACCEPTED' ? '승인' : '거절'}`
+                : decisionType === 'ACCEPTED' ? '유저 승인' : '유저 거절'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {selectedUser?.name}님의 가입을{' '}
-              {decisionType === 'APPROVED' ? '승인' : '거절'}하시겠습니까?
+              {selectedUser 
+                ? `${selectedUser.name}님의 가입을 `
+                : `${selectedUserIds.length}명의 가입 요청을 `}
+              {decisionType === 'ACCEPTED' ? '승인' : '거절'}하시겠습니까?
               {decisionType === 'REJECTED' && (
                 <span className="block mt-2 text-destructive">
                   거절된 유저는 서비스를 이용할 수 없습니다.
                 </span>
               )}
             </AlertDialogDescription>
+            {decisionType === 'ACCEPTED' && (
+              <div className="py-4">
+                <Label htmlFor="role" className="mb-2 block">
+                  부여할 권한
+                </Label>
+                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                  <SelectTrigger id="role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MEMBER">일반 멤버</SelectItem>
+                    <SelectItem value="ADMIN">관리자</SelectItem>
+                    <SelectItem value="INSTRUCTOR">강사</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDecision}
-              disabled={decisionMutation.isPending}
+              disabled={decisionMutation.isPending || bulkDecisionMutation.isPending}
               className={decisionType === 'REJECTED' ? 'bg-destructive hover:bg-destructive/90' : ''}
             >
-              {decisionMutation.isPending ? (
+              {decisionMutation.isPending || bulkDecisionMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
-              ) : decisionType === 'APPROVED' ? (
+              ) : decisionType === 'ACCEPTED' ? (
                 '승인'
               ) : (
                 '거절'
@@ -939,11 +1115,15 @@ function UserCard({
   onApprove,
   onReject,
   showActions = false,
+  isChecked,
+  onToggleSelect,
 }: {
   user: AdminUser;
   onApprove?: () => void;
   onReject?: () => void;
   showActions?: boolean;
+  isChecked?: boolean;
+  onToggleSelect?: (checked: boolean) => void;
 }) {
   const timeAgo = formatDistanceToNow(new Date(user.createdAt), {
     addSuffix: true,
@@ -951,43 +1131,62 @@ function UserCard({
   });
 
   return (
-    <Card>
+    <Card className="hover:bg-muted/30 transition-colors border-border/60">
       <CardContent className="p-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-start gap-4">
+          {onToggleSelect && (
+            <div className="pt-3">
+              <Checkbox
+                checked={isChecked}
+                onCheckedChange={(checked) => onToggleSelect(checked as boolean)}
+              />
+            </div>
+          )}
           <UserAvatar
             src={user.profileImageUrl}
             name={user.name}
-            className="h-12 w-12"
+            className="h-12 w-12 mt-1"
           />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="font-medium truncate">{user.name}</p>
-              <Badge variant="outline" className="text-xs">
+          <div className="flex-1 min-w-0 py-1">
+            <div className="flex items-center gap-2 mb-1">
+              <p className="font-semibold text-base truncate">{user.name}</p>
+              <Badge variant="outline" className="text-xs font-normal bg-background">
                 {user.trackName}
               </Badge>
             </div>
-            <p className="text-sm text-muted-foreground truncate">{user.email}</p>
-            <p className="text-xs text-muted-foreground mt-1">{timeAgo} 가입 요청</p>
+            <div className="text-sm text-muted-foreground space-y-0.5">
+              <p className="truncate">{user.email}</p>
+              {user.phoneNumber && (
+                <div className="flex items-center gap-1.5">
+                  <Phone className="h-3.5 w-3.5" />
+                  <p className="truncate">{user.phoneNumber}</p>
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground/70 mt-2 flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {timeAgo} 가입 요청
+            </p>
           </div>
           {showActions && (
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 self-center">
               <Button
                 size="sm"
                 variant="outline"
                 onClick={onReject}
-                className="text-destructive hover:text-destructive"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20 h-9"
               >
-                <XCircle className="h-4 w-4 mr-1" />
+                <XCircle className="h-4 w-4 mr-1.5" />
                 거절
               </Button>
-              <Button size="sm" onClick={onApprove}>
-                <CheckCircle className="h-4 w-4 mr-1" />
+              <Button size="sm" onClick={onApprove} className="h-9">
+                <CheckCircle className="h-4 w-4 mr-1.5" />
                 승인
               </Button>
             </div>
           )}
           {!showActions && user.status === 'APPROVED' && (
-            <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+            <Badge className="bg-green-100 text-green-700 hover:bg-green-100 self-center px-3 py-1">
               승인됨
             </Badge>
           )}

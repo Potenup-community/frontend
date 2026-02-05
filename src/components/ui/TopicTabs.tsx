@@ -20,10 +20,10 @@ export function TopicTabs() {
             key={item.topic}
             href={href}
             className={cn(
-              'flex-shrink-0 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
+              'flex-shrink-0 px-5 py-2.5 rounded-xl text-sm transition-all duration-200',
               isActive
-                ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
-                : 'bg-card text-muted-foreground hover:text-foreground hover:bg-muted/80 border border-border/50 hover:border-border'
+                ? 'text-primary font-bold bg-primary/10'
+                : 'text-muted-foreground font-medium hover:text-primary hover:bg-primary/5'
             )}
           >
             {item.label}

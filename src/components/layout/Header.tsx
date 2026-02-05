@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Bell, PenSquare, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/ui/UserAvatar';
@@ -13,13 +13,18 @@ import { NotificationSheet } from '@/components/notifications/NotificationSheet'
 import { useQuery } from '@tanstack/react-query';
 
 const NAV_TABS = [
-  { href: '/', label: '피드' },
-  { href: '/studies', label: '스터디' },
-] as const;
+  { href: '/', label: '홈', topic: null },
+  { href: '/?topic=notice', label: '공지사항', topic: 'NOTICE' },
+  { href: '/?topic=knowledge', label: '정보공유', topic: ['KNOWLEDGE', 'EMPLOYMENT_TIP'] },
+  { href: '/?topic=small_talk', label: '자유게시판', topic: 'SMALL_TALK' },
+  { href: '/studies', label: '스터디', topic: null },
+];
 
 export function Header() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentTopic = searchParams.get('topic')?.toUpperCase();
   const { user, isAuthenticated } = useAuth();
 
   const { data: unreadData } = useQuery({
@@ -35,11 +40,22 @@ export function Header() {
 
   const unreadCount = unreadData?.count || 0;
 
-  const isActive = (href: string) => {
-    if (href === '/') {
-      return pathname === '/' || pathname?.startsWith('/topic');
+  const isActive = (tab: typeof NAV_TABS[number]) => {
+    if (tab.href === '/studies') {
+      return pathname.startsWith('/studies');
     }
-    return pathname?.startsWith(href);
+    
+    if (pathname !== '/') return false;
+
+    if (tab.topic === null) {
+      return !currentTopic;
+    }
+
+    if (Array.isArray(tab.topic)) {
+      return tab.topic.includes(currentTopic || '');
+    }
+
+    return currentTopic === tab.topic;
   };
 
   return (
@@ -52,23 +68,26 @@ export function Header() {
 
             {/* PC Navigation Tabs */}
             <nav className="hidden lg:flex items-center">
-              {NAV_TABS.map((tab) => (
-                <Link
-                  key={tab.href}
-                  href={tab.href}
-                  className={cn(
-                    'relative px-4 py-5 text-sm font-medium transition-colors',
-                    isActive(tab.href)
-                      ? 'text-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  {tab.label}
-                  {isActive(tab.href) && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-                  )}
-                </Link>
-              ))}
+              {NAV_TABS.map((tab) => {
+                const active = isActive(tab);
+                return (
+                  <Link
+                    key={tab.label}
+                    href={tab.href}
+                    className={cn(
+                      'relative px-4 py-5 text-sm font-medium transition-colors',
+                      active
+                        ? 'text-primary font-bold'
+                        : 'text-muted-foreground hover:text-primary'
+                    )}
+                  >
+                    {tab.label}
+                    {active && (
+                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                    )}
+                  </Link>
+                );
+              })}
             </nav>
           </div>
 

@@ -7,7 +7,7 @@ import { UserAvatar } from '@/components/ui/UserAvatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Users, Flame, Hash, FileText } from 'lucide-react';
+import { Users, Flame, Hash, FileText, Shield } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi } from '@/lib/api';
 
@@ -30,41 +30,59 @@ export function Sidebar() {
       <div className="sticky top-24 space-y-4">
         {/* User Profile Card */}
         {isAuthenticated && user ? (
-          <Card className="overflow-hidden border-border/50">
-            <div className="h-20 bg-gradient-to-br from-primary/80 via-primary to-primary/60" />
-            <CardContent className="pt-0 -mt-10">
-              <div className="flex flex-col items-center text-center">
-                <UserAvatar
-                  src={user.profileImageUrl}
-                  name={user.name}
-                  className="h-16 w-16 border-4 border-card shadow-lg"
-                />
-                <h3 className="mt-3 font-semibold text-lg">{user.name}</h3>
-                <p className="text-sm text-muted-foreground">{user.trackName}</p>
-
-                <div className="grid grid-cols-3 gap-4 mt-4 w-full pt-4 border-t border-border">
-                  <Link href="/mypage/post" className="text-center group">
-                    <div className="text-lg font-bold text-muted-foreground group-hover:text-primary transition-colors">
-                      -
-                    </div>
-                    <div className="text-xs text-muted-foreground">게시글</div>
-                  </Link>
-                  <Link href="/mypage/comment" className="text-center group">
-                    <div className="text-lg font-bold text-muted-foreground group-hover:text-primary transition-colors">
-                      -
-                    </div>
-                    <div className="text-xs text-muted-foreground">댓글</div>
-                  </Link>
-                  <Link href="/mypage/like" className="text-center group">
-                    <div className="text-lg font-bold text-muted-foreground group-hover:text-primary transition-colors">
-                      -
-                    </div>
-                    <div className="text-xs text-muted-foreground">좋아요</div>
-                  </Link>
-                </div>
+          <>
+            <Card className="overflow-hidden border-border/50">
+              <div className="h-20 relative">
+                <div className="absolute bottom-0 left-6 right-6 border-b border-border" />
               </div>
-            </CardContent>
-          </Card>
+              <CardContent className="pt-0 -mt-10">
+                <div className="flex flex-col items-center text-center">
+                  <UserAvatar
+                    src={user.profileImageUrl}
+                    name={user.name}
+                    className="h-16 w-16 border-4 border-card shadow-lg"
+                  />
+                  <h3 className="mt-3 font-semibold text-lg">{user.name}</h3>
+                  <p className="text-sm text-muted-foreground">{user.trackName}</p>
+
+                  <div className="grid grid-cols-3 gap-4 mt-4 w-full pt-4 border-t border-border">
+                    <Link href="/mypage/post" className="text-center group">
+                      <div className="text-lg font-bold text-muted-foreground group-hover:text-primary transition-colors">
+                        -
+                      </div>
+                      <div className="text-xs text-muted-foreground">게시글</div>
+                    </Link>
+                    <Link href="/mypage/comment" className="text-center group">
+                      <div className="text-lg font-bold text-muted-foreground group-hover:text-primary transition-colors">
+                        -
+                      </div>
+                      <div className="text-xs text-muted-foreground">댓글</div>
+                    </Link>
+                    <Link href="/mypage/like" className="text-center group">
+                      <div className="text-lg font-bold text-muted-foreground group-hover:text-primary transition-colors">
+                        -
+                      </div>
+                      <div className="text-xs text-muted-foreground">좋아요</div>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Admin Link */}
+            {user.role === 'ADMIN' && (
+              <Card className="border-primary/20 bg-primary/5">
+                <CardContent className="p-3">
+                  <Button variant="outline" className="w-full gap-2 border-primary/20 hover:bg-primary/10 hover:text-primary bg-background" asChild>
+                    <Link href="/admin">
+                      <Shield className="h-4 w-4 text-primary" />
+                      관리자 페이지
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </>
         ) : (
           <Card>
             <CardContent className="p-6 text-center">

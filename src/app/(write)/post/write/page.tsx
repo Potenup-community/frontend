@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Bold, Italic, Heading1, Heading2, Heading3, Quote, Code, Image as ImageIcon, Link as LinkIcon, List, Eye, Edit3 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Button } from '@/components/ui/button';
@@ -46,13 +47,17 @@ export default function PostWrite() {
   const [draftId] = useState(() => uuidv4());
 
   const resolveImageSrc = (src: string) => {
+    if (!src) return '';
     if (src.startsWith('data:') || src.startsWith('blob:')) return src;
+    const apiIndex = src.indexOf('/api/v1/');
+    if (apiIndex !== -1) return src.slice(apiIndex);
     if (src.startsWith('http://') || src.startsWith('https://')) {
-      const apiIndex = src.indexOf('/api/v1/');
-      if (apiIndex !== -1) {
-        return src.slice(apiIndex);
+      try {
+        const url = new URL(src);
+        return `/api/v1${url.pathname}${url.search}`;
+      } catch {
+        return src;
       }
-      return src;
     }
     if (src.startsWith('/api/')) return src;
     if (src.startsWith('/files/')) return `${API_BASE_URL}${src}`;
@@ -277,7 +282,7 @@ export default function PostWrite() {
             <h1 className="mb-8 text-4xl font-bold break-words">{title || "제목 없음"}</h1>
             {content ? (
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={[remarkGfm, remarkBreaks]}
                 urlTransform={(value) => value} // Allow blob: and data: URLs
                 components={{
                   code({ node, inline, className, children, ...props }: any) {
@@ -300,12 +305,17 @@ export default function PostWrite() {
                   img: ({ src, alt, ...props }: any) => {
                     if (!src) return null;
                     const resolvedSrc = resolveImageSrc(src);
+                    console.log('[Image Debug] raw:', src, '→ resolved:', resolvedSrc);
                     return (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img 
-                        src={resolvedSrc} 
-                        alt={alt} 
-                        className="rounded-lg shadow-sm border border-border/50 max-h-[500px] object-contain my-4" 
+                      <img
+                        src={resolvedSrc}
+                        alt={alt}
+                        className="rounded-lg shadow-sm border border-border/50 max-h-[500px] object-contain my-4"
+                        onError={(e) => {
+                          console.error('[Image Error] Failed to load:', resolvedSrc, 'original:', src);
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
                         {...props} 
                       />
                     );
@@ -335,7 +345,7 @@ function ToolbarButton({ icon: Icon, onClick, tooltip }: { icon: any, onClick: (
 
       onClick={onClick}
 
-      className="p-1.5 text-muted-foreground/70 hover:text-foreground hover:bg-accent/50 rounded-md transition-all active:scale-95"
+      className="p-1.5 text-muted-foreground/70 hover:text-orange-500 hover:bg-orange-50/50 rounded-md transition-all active:scale-95"
 
       title={tooltip}
 

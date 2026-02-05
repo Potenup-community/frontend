@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { Loader2, Bold, Italic, Heading1, Heading2, Heading3, Quote, Code, Image as ImageIcon, Link as LinkIcon, List, Eye, Edit3 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Button } from '@/components/ui/button';
@@ -67,11 +68,17 @@ export default function PostEdit() {
   }, [existingPost, initialized]);
 
   const resolveImageSrc = (src: string) => {
+    if (!src) return '';
     if (src.startsWith('data:') || src.startsWith('blob:')) return src;
+    const apiIndex = src.indexOf('/api/v1/');
+    if (apiIndex !== -1) return src.slice(apiIndex);
     if (src.startsWith('http://') || src.startsWith('https://')) {
-      const apiIndex = src.indexOf('/api/v1/');
-      if (apiIndex !== -1) return src.slice(apiIndex);
-      return src;
+      try {
+        const url = new URL(src);
+        return `/api/v1${url.pathname}${url.search}`;
+      } catch {
+        return src;
+      }
     }
     if (src.startsWith('/api/')) return src;
     if (src.startsWith('/files/')) return `${API_BASE_URL}${src}`;
@@ -146,8 +153,8 @@ export default function PostEdit() {
         content: content.trim(),
       });
 
+      queryClient.removeQueries({ queryKey: ['post', postId] });
       queryClient.invalidateQueries({ queryKey: ['posts'] });
-      queryClient.invalidateQueries({ queryKey: ['post', postId] });
       queryClient.invalidateQueries({ queryKey: ['my-posts'] });
 
       toast.success('게시글이 수정되었습니다!');
@@ -306,7 +313,7 @@ export default function PostEdit() {
             <h1 className="mb-8 text-4xl font-bold break-words">{title || "제목 없음"}</h1>
             {content ? (
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={[remarkGfm, remarkBreaks]}
                 urlTransform={(value) => value}
                 components={{
                   code({ node, inline, className, children, ...props }: any) {
@@ -348,7 +355,7 @@ function ToolbarButton({ icon: Icon, onClick, tooltip }: { icon: any; onClick: (
   return (
     <button
       onClick={onClick}
-      className="p-1.5 text-muted-foreground/70 hover:text-foreground hover:bg-accent/50 rounded-md transition-all active:scale-95"
+      className="p-1.5 text-muted-foreground/70 hover:text-orange-500 hover:bg-orange-50/50 rounded-md transition-all active:scale-95"
       title={tooltip}
     >
       <Icon className="h-4 w-4" />
