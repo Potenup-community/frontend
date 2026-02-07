@@ -28,11 +28,13 @@ class ApiClient {
 
     // Handle 401 - redirect to login (except for auth check endpoints)
     if (response.status === 401) {
-      // Don't redirect for auth check endpoints or if already on signin page
+      // Don't redirect for auth check endpoints or if on signin/signup page
       const isAuthCheckEndpoint = endpoint === '/auth/me' || endpoint === '/auth/login';
-      const isSigninPage = typeof window !== 'undefined' && window.location.pathname === '/signin';
+      const isPublicEndpoint = endpoint === '/admin/tracks'; // 트랙 조회는 회원가입에 필요
+      const isAuthPage = typeof window !== 'undefined' &&
+        (window.location.pathname === '/signin' || window.location.pathname === '/signup');
 
-      if (!isAuthCheckEndpoint && !isSigninPage) {
+      if (!isAuthCheckEndpoint && !isPublicEndpoint && !isAuthPage) {
         window.location.href = '/signin';
       }
       throw new Error('Unauthorized');

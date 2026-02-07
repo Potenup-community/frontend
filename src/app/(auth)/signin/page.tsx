@@ -10,13 +10,7 @@ import { useGoogleSignin } from '@/hooks/useGoogleSignin';
 
 export default function SignIn() {
   const router = useRouter();
-  const { mockLogin } = useAuth();
   const { signWithGoogle, isLoading: isGoogleLoading } = useGoogleSignin();
-
-  const handleDemoLogin = () => {
-    mockLogin();
-    router.push('/');
-  };
 
   const features = [
     {
@@ -46,10 +40,7 @@ export default function SignIn() {
         
         <div className="relative z-10">
           <Link href="/" className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-xl">P</span>
-            </div>
-            <span className="text-white font-bold text-2xl tracking-tight">PotenUp</span>
+            <span className="text-white font-bold text-2xl tracking-tight">POTENUP</span>
           </Link>
         </div>
         
@@ -60,7 +51,7 @@ export default function SignIn() {
               함께 성장해요
             </h1>
             <p className="text-white/80 text-xl leading-relaxed">
-              개발자들을 위한 따뜻한 커뮤니티
+              포텐러들을 위한 따뜻한 커뮤니티
             </p>
           </div>
           
@@ -107,22 +98,9 @@ export default function SignIn() {
               </div>
 
               <div className="space-y-3">
-                {/* Demo Login Button */}
-                <Button
-                  size="lg"
-                  className="w-full h-14 text-base font-semibold gap-3 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg shadow-primary/25"
-                  onClick={handleDemoLogin}
-                >
-                  <Sparkles className="h-5 w-5" />
-                  데모 계정으로 둘러보기
-                </Button>
-
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
                     <span className="w-full border-t border-border" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-3 text-muted-foreground">또는</span>
                   </div>
                 </div>
 
