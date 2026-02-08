@@ -78,7 +78,7 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   const isFull = study.currentMemberCount >= study.capacity;
-  const canApply = !study.isLeader && !study.isRecruitmentClosed && !isFull && study.status === 'PENDING';
+  const canApply = !study.isLeader && !study.isParticipant && !study.isRecruitmentClosed && !isFull && study.status === 'PENDING';
 
 
   // 스터디 참가
@@ -181,6 +181,34 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
                     <Badge key={tag} variant="secondary">
                       {tag}
                     </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Participants */}
+          {study.participants && study.participants.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>참가자 ({study.participants.length}명)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {study.participants.map((participant) => (
+                    <div key={participant.id} className="flex items-center gap-3">
+                      <UserAvatar
+                        src={participant.profileImageUrl}
+                        name={participant.name}
+                        className="h-9 w-9"
+                      />
+                      <div>
+                        <p className="font-medium text-sm">{participant.name}</p>
+                        {participant.trackName && (
+                          <p className="text-xs text-muted-foreground">{participant.trackName}</p>
+                        )}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </CardContent>
@@ -292,7 +320,13 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
             </div>
           )}
 
-          {!canApply && !study.isLeader && study.status === 'PENDING' && (
+          {study.isParticipant && !study.isLeader && (
+            <div className="text-center text-sm text-muted-foreground py-2">
+              이미 참가 중인 스터디입니다
+            </div>
+          )}
+
+          {!canApply && !study.isLeader && !study.isParticipant && study.status === 'PENDING' && (
             <div className="text-center text-sm text-muted-foreground py-2">
               {isFull ? '모집이 마감되었습니다' : '현재 신청할 수 없습니다'}
             </div>

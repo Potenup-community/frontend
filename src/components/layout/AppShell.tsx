@@ -18,10 +18,14 @@ export function AppShell({ showSidebar = true, children }: AppShellProps) {
       <Header />
       
       {/* PC: Wide centered layout with sidebar | Mobile: Full width compact layout */}
-      <div className={`mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-8 ${isMobile ? '' : 'max-w-7xl'}`}>
-        <div className="flex gap-6 lg:gap-10">
-          {showSidebar && !isMobile && <Sidebar />}
-          
+      <div className={`mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-8 ${isMobile ? '' : 'max-w-[1680px]'}`}>
+        <div className="flex gap-6 lg:gap-12">
+          {showSidebar && !isMobile && (
+            <div className="[filter:drop-shadow(2px_0_6px_rgba(0,0,0,0.04))] dark:[filter:drop-shadow(2px_0_6px_rgba(0,0,0,0.2))]">
+              <Sidebar />
+            </div>
+          )}
+
           <main className="flex-1 min-w-0">
             {children}
           </main>

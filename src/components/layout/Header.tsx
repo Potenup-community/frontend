@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Bell, PenSquare, Search } from 'lucide-react';
+import { Bell, PenSquare, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -60,14 +60,17 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo & Nav */}
-          <div className="flex items-center gap-8">
-            <Logo />
+          <div className="flex items-center">
+            {/* Logo - matches sidebar width (w-72 = 288px) */}
+            <div className="lg:w-72 flex-shrink-0">
+              <Logo />
+            </div>
 
-            {/* PC Navigation Tabs */}
-            <nav className="hidden lg:flex items-center">
+            {/* PC Navigation Tabs - aligned with content area */}
+            <nav className="hidden lg:flex items-center ml-12">
               {NAV_TABS.map((tab) => {
                 const active = isActive(tab);
                 return (
@@ -93,9 +96,17 @@ export function Header() {
 
           {/* Right Actions */}
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="hidden sm:flex">
-              <Search className="h-5 w-5" />
-            </Button>
+            {isAuthenticated && user?.role === 'ADMIN' && (
+              <button
+                onClick={() => router.push('/admin')}
+                className="hidden sm:flex items-center justify-end h-9 rounded-md px-2.5 text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-all duration-300 cursor-pointer group overflow-hidden w-10 hover:w-[110px]"
+              >
+                <span className="max-w-0 overflow-hidden opacity-0 group-hover:max-w-[80px] group-hover:opacity-100 group-hover:mr-1.5 transition-all duration-300 text-sm font-medium whitespace-nowrap">
+                  관리자모드
+                </span>
+                <Shield className="h-5 w-5 shrink-0" />
+              </button>
+            )}
 
             {isAuthenticated ? (
               <>

@@ -81,7 +81,7 @@ export default function CreateStudyPage() {
       newErrors.chatUrl = '올바른 URL 형식이 아닙니다.';
     }
 
-    if (formData.refUrl && !isValidUrl(formData.refUrl)) {
+    if (formData.refUrl?.trim() && !isValidUrl(formData.refUrl.trim())) {
       newErrors.refUrl = '올바른 URL 형식이 아닙니다.';
     }
 
@@ -101,7 +101,8 @@ export default function CreateStudyPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
-    createMutation.mutate(formData);
+    const submitData = { ...formData, refUrl: formData.refUrl?.trim() || null };
+    createMutation.mutate(submitData);
   };
 
   const handleAddTag = () => {
@@ -240,7 +241,7 @@ export default function CreateStudyPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="budget">
-                  비용 <span className="text-destructive">*</span>
+                  희망 지원 항목 <span className="text-destructive">*</span>
                 </Label>
                 <Select
                   value={formData.budget}
@@ -261,7 +262,7 @@ export default function CreateStudyPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="budgetExplain">
-                  비용 설명 <span className="text-destructive">*</span>
+                  희망 지원 내용 <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="budgetExplain"

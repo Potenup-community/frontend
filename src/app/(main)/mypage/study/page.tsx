@@ -19,7 +19,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { studyApi, Recruitment } from '@/lib/api';
-import { RECRUITMENT_STATUS_LABELS } from '@/lib/constants';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';

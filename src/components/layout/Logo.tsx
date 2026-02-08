@@ -6,8 +6,11 @@ export function Logo({ showText = true }: { showText?: boolean }) {
   return (
     <Link href="/" className="flex items-center gap-2.5">
       {showText && (
-        <span className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-          POTENUP
+        <span className="relative text-xl font-bold group inline-block">
+          <span className="text-foreground">POTENUP</span>
+          <span aria-hidden className="absolute inset-0 text-orange-500 logo-text-fill">
+            POTENUP
+          </span>
         </span>
       )}
     </Link>

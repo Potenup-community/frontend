@@ -51,7 +51,7 @@ export default function SignIn() {
               함께 성장해요
             </h1>
             <p className="text-white/80 text-xl leading-relaxed">
-              포텐러들을 위한 따뜻한 커뮤니티
+              포텐업을 위한 따뜻한 커뮤니티
             </p>
           </div>
           

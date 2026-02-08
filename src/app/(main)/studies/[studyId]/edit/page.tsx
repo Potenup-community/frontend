@@ -128,7 +128,8 @@ export default function EditStudyPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
-    updateMutation.mutate(formData);
+    const submitData = { ...formData, refUrl: formData.refUrl?.trim() || null };
+    updateMutation.mutate(submitData);
   };
 
   const handleAddTag = () => {
@@ -274,7 +275,7 @@ export default function EditStudyPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="budget">
-                  비용 <span className="text-destructive">*</span>
+                  희망 지원 항목 유형 <span className="text-destructive">*</span>
                 </Label>
                 <Select
                   value={formData.budget || 'MEAL'}
@@ -295,7 +296,7 @@ export default function EditStudyPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="budgetExplain">
-                  비용 설명 <span className="text-destructive">*</span>
+                  지원 항목 상세 <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="budgetExplain"

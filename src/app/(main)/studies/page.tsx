@@ -1,13 +1,21 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { Loader2, Users, Plus, Calendar } from 'lucide-react';
+import { Loader2, Users, Plus, Calendar, Filter } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { api, Study, scheduleApi } from '@/lib/api';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { api, Study, adminApi, scheduleApi } from '@/lib/api';
 import { BUDGET_LABELS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow, differenceInDays } from 'date-fns';
@@ -15,11 +23,26 @@ import { ko } from 'date-fns/locale';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
 export default function Studies() {
+  const [selectedTrack, setSelectedTrack] = useState<number>(0);
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+
+  const { data: tracks } = useQuery({
+    queryKey: ['tracks'],
+    queryFn: async () => {
+      const res = await adminApi.getTracks();
+      return res.content || [];
+    },
+  });
+
   const fetchStudies = async ({ pageParam = 0 }) => {
-    const res: any = await api.get('/studies', {
+    const params: Record<string, any> = {
       page: pageParam,
       size: 10,
-    });
+    };
+    if (selectedTrack) params.trackId = selectedTrack;
+    if (selectedStatus && selectedStatus !== 'all') params.status = selectedStatus;
+
+    const res: any = await api.get('/studies', params);
 
     // Map API response to Study interface
     const content = res.content.map((item: any): Study => ({
@@ -36,11 +59,13 @@ export default function Studies() {
       leader: {
         id: item.leader?.id,
         name: item.leader?.name,
+        trackId: item.leader?.trackId,
         trackName: item.leader?.trackName,
         profileImageUrl: item.leader?.profileImageUrl,
       },
       schedule: item.schedule,
       isLeader: item.isLeader,
+      isParticipant: item.isParticipant,
       isRecruitmentClosed: item.isRecruitmentClosed,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
@@ -60,7 +85,7 @@ export default function Studies() {
     isFetchingNextPage,
     isLoading,
   } = useInfiniteQuery({
-    queryKey: ['studies'],
+    queryKey: ['studies', selectedTrack, selectedStatus],
     queryFn: fetchStudies,
     initialPageParam: 0,
     getNextPageParam: (lastPage) => (lastPage.hasNext ? lastPage.pageNumber + 1 : undefined),
@@ -85,6 +110,51 @@ export default function Studies() {
             스터디 개설
           </Link>
         </Button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* 상태 탭 필터 */}
+        <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
+          {[
+            { value: 'all', label: '전체' },
+            { value: 'PENDING', label: '모집중' },
+            { value: 'CLOSED', label: '모집마감' },
+            { value: 'APPROVED', label: '승인 완료' },
+          ].map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setSelectedStatus(tab.value)}
+              className={cn(
+                'px-3 py-1.5 text-sm font-medium rounded-md transition-all',
+                selectedStatus === tab.value
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* 트랙 필터 */}
+        <Select
+          value={selectedTrack.toString()}
+          onValueChange={(value) => setSelectedTrack(Number(value))}
+        >
+          <SelectTrigger className="w-[160px] h-9">
+            <Filter className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+            <SelectValue placeholder="트랙 선택" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="0">전체 트랙</SelectItem>
+            {tracks?.map((track) => (
+              <SelectItem key={track.trackId} value={track.trackId.toString()}>
+                {track.trackName}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Schedule Banner */}
