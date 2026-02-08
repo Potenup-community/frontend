@@ -101,7 +101,7 @@ export default function CreateStudyPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
-    const submitData = { ...formData, refUrl: formData.refUrl?.trim() || null };
+    const submitData = { ...formData, refUrl: formData.refUrl?.trim() || undefined };
     createMutation.mutate(submitData);
   };
 
