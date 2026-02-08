@@ -17,3 +17,6 @@ yarn-error.log*
 # 운영체제 관련 파일
 .DS_Store
 Thumbs.db
+
+# 문서
+api-docs.json

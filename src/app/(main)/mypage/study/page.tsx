@@ -33,6 +33,7 @@ export default function MyStudyRecruitmentsPage() {
   const { data: recruitmentsData, isLoading } = useQuery({
     queryKey: ['my-recruitments'],
     queryFn: () => studyApi.getMyRecruitments(),
+    staleTime: 0,
   });
 
   const cancelMutation = useMutation({
@@ -48,9 +49,7 @@ export default function MyStudyRecruitmentsPage() {
     },
   });
 
-  const recruitments = recruitmentsData?.content || [];
-  const pendingRecruitments = recruitments.filter((r) => r.status === 'PENDING');
-  const processedRecruitments = recruitments.filter((r) => r.status !== 'PENDING');
+  const recruitments = Array.isArray(recruitmentsData) ? recruitmentsData : recruitmentsData?.content || [];
 
   if (isLoading) {
     return <RecruitmentListSkeleton />;
@@ -73,41 +72,23 @@ export default function MyStudyRecruitmentsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Pending Recruitments */}
-      {pendingRecruitments.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
-            <Clock className="h-5 w-5 text-amber-500" />
-            대기 중인 신청
-            <Badge variant="secondary">{pendingRecruitments.length}</Badge>
-          </h2>
-          <div className="space-y-3">
-            {pendingRecruitments.map((recruitment) => (
-              <RecruitmentCard
-                key={recruitment.id}
-                recruitment={recruitment}
-                onCancel={() => setCancelTarget(recruitment)}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Processed Recruitments */}
-      {processedRecruitments.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
-            <CheckCircle className="h-5 w-5 text-muted-foreground" />
-            처리된 신청
-            <Badge variant="outline">{processedRecruitments.length}</Badge>
-          </h2>
-          <div className="space-y-3">
-            {processedRecruitments.map((recruitment) => (
-              <RecruitmentCard key={recruitment.id} recruitment={recruitment} />
-            ))}
-          </div>
-        </section>
-      )}
+      {/* Recruitments */}
+      <section>
+        <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
+          <Clock className="h-5 w-5 text-amber-500" />
+          신청한 스터디
+          <Badge variant="secondary">{recruitments.length}</Badge>
+        </h2>
+        <div className="space-y-3">
+          {recruitments.map((recruitment) => (
+            <RecruitmentCard
+              key={recruitment.id}
+              recruitment={recruitment}
+              onCancel={() => setCancelTarget(recruitment)}
+            />
+          ))}
+        </div>
+      </section>
 
       {/* Cancel Confirmation */}
       <AlertDialog open={!!cancelTarget} onOpenChange={(open) => !open && setCancelTarget(null)}>
@@ -153,34 +134,6 @@ function RecruitmentCard({
     locale: ko,
   });
 
-  const getStatusBadge = () => {
-    switch (recruitment.status) {
-      case 'PENDING':
-        return (
-          <Badge variant="secondary" className="gap-1">
-            <Clock className="h-3 w-3" />
-            대기중
-          </Badge>
-        );
-      case 'APPROVED':
-        return (
-          <Badge className="gap-1 bg-success text-success-foreground">
-            <CheckCircle className="h-3 w-3" />
-            승인됨
-          </Badge>
-        );
-      case 'REJECTED':
-        return (
-          <Badge variant="destructive" className="gap-1">
-            <XCircle className="h-3 w-3" />
-            거절됨
-          </Badge>
-        );
-      default:
-        return null;
-    }
-  };
-
   return (
     <Card>
       <CardContent className="p-4">
@@ -193,26 +146,13 @@ function RecruitmentCard({
               >
                 {recruitment.studyName}
               </Link>
-              {getStatusBadge()}
             </div>
             {recruitment.trackName && (
               <p className="text-sm text-muted-foreground mb-2">
                 {recruitment.trackName}
               </p>
             )}
-            <div className="bg-muted/50 p-3 rounded-md mb-2">
-              <p className="text-sm">{recruitment.appeal}</p>
-            </div>
             <p className="text-xs text-muted-foreground">{timeAgo} 신청</p>
-            {recruitment.approvedAt && (
-              <p className="text-xs text-success mt-1">
-                {formatDistanceToNow(new Date(recruitment.approvedAt), {
-                  addSuffix: true,
-                  locale: ko,
-                })}{' '}
-                승인됨
-              </p>
-            )}
           </div>
           <div className="flex flex-col gap-2">
             <Button variant="outline" size="sm" asChild>
@@ -221,7 +161,7 @@ function RecruitmentCard({
                 보기
               </Link>
             </Button>
-            {recruitment.status === 'PENDING' && onCancel && (
+            {onCancel && (
               <Button
                 variant="outline"
                 size="sm"

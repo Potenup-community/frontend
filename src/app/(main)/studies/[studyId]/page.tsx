@@ -22,9 +22,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/ui/UserAvatar';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,17 +32,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { studyApi, StudyDetail, Recruitment } from '@/lib/api';
+import { studyApi, StudyDetail } from '@/lib/api';
 import { BUDGET_LABELS, STUDY_STATUS_LABELS } from '@/lib/constants';
 import { toast } from 'sonner';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -86,24 +75,22 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
   const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [isApplyOpen, setIsApplyOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [appeal, setAppeal] = useState('');
 
   const isFull = study.currentMemberCount >= study.capacity;
-  const canApply = !study.isLeader && !study.isRecruitmentClosed && !isFull && study.status === 'APPROVED';
+  const canApply = !study.isLeader && !study.isRecruitmentClosed && !isFull && study.status === 'PENDING';
 
-  // 스터디 신청
-  const applyMutation = useMutation({
-    mutationFn: () => studyApi.applyStudy(study.id, { appeal }),
+
+  // 스터디 참가
+  const joinMutation = useMutation({
+    mutationFn: () => studyApi.joinStudy(study.id),
     onSuccess: () => {
-      toast.success('스터디 신청이 완료되었습니다.');
-      setIsApplyOpen(false);
-      setAppeal('');
+      toast.success('스터디에 참가되었습니다!');
       queryClient.invalidateQueries({ queryKey: ['study', study.id] });
+      queryClient.invalidateQueries({ queryKey: ['my-recruitments'] });
     },
     onError: () => {
-      toast.error('스터디 신청에 실패했습니다.');
+      toast.error('스터디 참가에 실패했습니다.');
     },
   });
 
@@ -119,20 +106,12 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
     },
   });
 
-  const handleApply = () => {
-    if (!appeal.trim()) {
-      toast.error('지원 동기를 입력해주세요.');
-      return;
-    }
-    applyMutation.mutate();
-  };
-
   const getStatusBadge = () => {
-    if (study.status === 'PENDING') {
-      return <Badge variant="secondary">승인 대기</Badge>;
-    }
     if (study.status === 'REJECTED') {
       return <Badge variant="destructive">거절됨</Badge>;
+    }
+    if (study.status === 'APPROVED') {
+      return <Badge className="bg-blue-500 text-white">승인 완료</Badge>;
     }
     if (study.isRecruitmentClosed || isFull) {
       return <Badge variant="secondary">모집 마감</Badge>;
@@ -208,10 +187,6 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
             </Card>
           )}
 
-          {/* Leader's Recruitment Management */}
-          {study.isLeader && (
-            <RecruitmentManagement studyId={study.id} />
-          )}
         </div>
 
         {/* Sidebar */}
@@ -297,12 +272,17 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
           {/* Apply Button */}
           {canApply && (
             <Button
-              className="w-full"
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold shadow-md"
               size="lg"
-              onClick={() => setIsApplyOpen(true)}
+              onClick={() => joinMutation.mutate()}
+              disabled={joinMutation.isPending}
             >
-              <Send className="h-4 w-4 mr-2" />
-              스터디 신청하기
+              {joinMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              참가하기
             </Button>
           )}
 
@@ -312,49 +292,13 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
             </div>
           )}
 
-          {!canApply && !study.isLeader && study.status === 'APPROVED' && (
+          {!canApply && !study.isLeader && study.status === 'PENDING' && (
             <div className="text-center text-sm text-muted-foreground py-2">
               {isFull ? '모집이 마감되었습니다' : '현재 신청할 수 없습니다'}
             </div>
           )}
         </div>
       </div>
-
-      {/* Apply Dialog */}
-      <Dialog open={isApplyOpen} onOpenChange={setIsApplyOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>스터디 신청</DialogTitle>
-            <DialogDescription>
-              "{study.name}" 스터디에 신청합니다.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="appeal">지원 동기</Label>
-              <Textarea
-                id="appeal"
-                placeholder="스터디에 참여하고 싶은 이유를 작성해주세요..."
-                value={appeal}
-                onChange={(e) => setAppeal(e.target.value)}
-                rows={5}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsApplyOpen(false)}>
-              취소
-            </Button>
-            <Button onClick={handleApply} disabled={applyMutation.isPending}>
-              {applyMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                '신청하기'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Confirmation */}
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
@@ -383,254 +327,6 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
 
       {/* Bottom padding for mobile nav */}
       <div className="h-20 lg:h-0" />
-    </div>
-  );
-}
-
-// Recruitment Management Component for Study Leader
-function RecruitmentManagement({ studyId }: { studyId: number }) {
-  const queryClient = useQueryClient();
-  const [selectedRecruitment, setSelectedRecruitment] = useState<Recruitment | null>(null);
-  const [actionType, setActionType] = useState<'approve' | 'reject' | null>(null);
-  const [activeTab, setActiveTab] = useState('pending');
-
-  const { data: recruitmentsData, isLoading } = useQuery({
-    queryKey: ['study', studyId, 'recruitments'],
-    queryFn: () => studyApi.getRecruitments(studyId),
-  });
-
-  const recruitments = recruitmentsData?.content || [];
-  const pendingRecruitments = recruitments.filter((r) => r.status === 'PENDING');
-  const processedRecruitments = recruitments.filter((r) => r.status !== 'PENDING');
-
-  const approveMutation = useMutation({
-    mutationFn: (recruitmentId: number) =>
-      studyApi.approveRecruitment(studyId, recruitmentId),
-    onSuccess: () => {
-      toast.success('신청이 승인되었습니다.');
-      queryClient.invalidateQueries({ queryKey: ['study', studyId] });
-      setSelectedRecruitment(null);
-      setActionType(null);
-    },
-    onError: () => {
-      toast.error('승인 처리에 실패했습니다.');
-    },
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: (recruitmentId: number) =>
-      studyApi.rejectRecruitment(studyId, recruitmentId),
-    onSuccess: () => {
-      toast.success('신청이 거절되었습니다.');
-      queryClient.invalidateQueries({ queryKey: ['study', studyId] });
-      setSelectedRecruitment(null);
-      setActionType(null);
-    },
-    onError: () => {
-      toast.error('거절 처리에 실패했습니다.');
-    },
-  });
-
-  const handleAction = (recruitment: Recruitment, action: 'approve' | 'reject') => {
-    setSelectedRecruitment(recruitment);
-    setActionType(action);
-  };
-
-  const confirmAction = () => {
-    if (!selectedRecruitment || !actionType) return;
-    if (actionType === 'approve') {
-      approveMutation.mutate(selectedRecruitment.id);
-    } else {
-      rejectMutation.mutate(selectedRecruitment.id);
-    }
-  };
-
-  const isPending = approveMutation.isPending || rejectMutation.isPending;
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          신청자 관리
-          {pendingRecruitments.length > 0 && (
-            <Badge variant="destructive">{pendingRecruitments.length}</Badge>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full">
-            <TabsTrigger value="pending" className="flex-1 gap-2">
-              <Clock className="h-4 w-4" />
-              대기 중
-              {pendingRecruitments.length > 0 && (
-                <Badge variant="destructive" className="ml-1">
-                  {pendingRecruitments.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="processed" className="flex-1 gap-2">
-              <CheckCircle className="h-4 w-4" />
-              처리 완료
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="pending" className="mt-4">
-            {isLoading ? (
-              <div className="space-y-3">
-                {[...Array(2)].map((_, i) => (
-                  <Skeleton key={i} className="h-24" />
-                ))}
-              </div>
-            ) : pendingRecruitments.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Clock className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-                <p>대기 중인 신청이 없습니다</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {pendingRecruitments.map((recruitment) => (
-                  <RecruitmentCard
-                    key={recruitment.id}
-                    recruitment={recruitment}
-                    onApprove={() => handleAction(recruitment, 'approve')}
-                    onReject={() => handleAction(recruitment, 'reject')}
-                    showActions
-                  />
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="processed" className="mt-4">
-            {isLoading ? (
-              <div className="space-y-3">
-                {[...Array(2)].map((_, i) => (
-                  <Skeleton key={i} className="h-24" />
-                ))}
-              </div>
-            ) : processedRecruitments.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <CheckCircle className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-                <p>처리된 신청이 없습니다</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {processedRecruitments.map((recruitment) => (
-                  <RecruitmentCard key={recruitment.id} recruitment={recruitment} />
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-
-        {/* Confirmation Dialog */}
-        <AlertDialog open={!!selectedRecruitment && !!actionType} onOpenChange={(open) => {
-          if (!open) {
-            setSelectedRecruitment(null);
-            setActionType(null);
-          }
-        }}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                신청 {actionType === 'approve' ? '승인' : '거절'}
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {selectedRecruitment?.userName}님의 신청을 {actionType === 'approve' ? '승인' : '거절'}하시겠습니까?
-                {actionType === 'reject' && (
-                  <span className="block mt-2 text-destructive">
-                    거절된 신청은 복구할 수 없습니다.
-                  </span>
-                )}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>취소</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmAction}
-                disabled={isPending}
-                className={actionType === 'reject' ? 'bg-destructive hover:bg-destructive/90' : ''}
-              >
-                {isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : actionType === 'approve' ? (
-                  '승인'
-                ) : (
-                  '거절'
-                )}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </CardContent>
-    </Card>
-  );
-}
-
-function RecruitmentCard({
-  recruitment,
-  onApprove,
-  onReject,
-  showActions = false,
-}: {
-  recruitment: Recruitment;
-  onApprove?: () => void;
-  onReject?: () => void;
-  showActions?: boolean;
-}) {
-  const timeAgo = formatDistanceToNow(new Date(recruitment.createdAt), {
-    addSuffix: true,
-    locale: ko,
-  });
-
-  return (
-    <div className="p-4 border rounded-lg">
-      <div className="flex items-start gap-3">
-        <UserAvatar
-          src={recruitment.userProfileImageUrl}
-          name={recruitment.userName}
-          className="h-10 w-10"
-        />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <p className="font-medium">{recruitment.userName}</p>
-            {recruitment.trackName && (
-              <Badge variant="outline" className="text-xs">
-                {recruitment.trackName}
-              </Badge>
-            )}
-            {!showActions && (
-              <Badge
-                variant={recruitment.status === 'APPROVED' ? 'default' : 'destructive'}
-                className={cn(
-                  'text-xs',
-                  recruitment.status === 'APPROVED' && 'bg-success text-success-foreground'
-                )}
-              >
-                {recruitment.status === 'APPROVED' ? '승인됨' : '거절됨'}
-              </Badge>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground mb-2">{timeAgo} 신청</p>
-          <p className="text-sm bg-muted/50 p-3 rounded-md">{recruitment.appeal}</p>
-        </div>
-        {showActions && (
-          <div className="flex gap-2 flex-shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-destructive hover:text-destructive"
-              onClick={onReject}
-            >
-              <XCircle className="h-4 w-4" />
-            </Button>
-            <Button size="sm" onClick={onApprove}>
-              <CheckCircle className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

@@ -1,18 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { Loader2, Users } from 'lucide-react';
+import { Loader2, Users, Plus, Calendar } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { api, Study } from '@/lib/api';
+import { api, Study, scheduleApi } from '@/lib/api';
 import { BUDGET_LABELS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, differenceInDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
 export default function Studies() {
   const fetchStudies = async ({ pageParam = 0 }) => {
@@ -79,10 +79,16 @@ export default function Studies() {
             함께 성장할 스터디를 찾아보세요
           </p>
         </div>
-        <Button variant="linearPrimary" asChild>
-          <Link href="/studies/create">스터디 개설</Link>
+        <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white font-semibold shadow-md" asChild>
+          <Link href="/studies/create">
+            <Plus className="h-4 w-4 mr-1" />
+            스터디 개설
+          </Link>
         </Button>
       </div>
+
+      {/* Schedule Banner */}
+      <ScheduleBanner />
 
       {/* Studies List */}
       {isLoading ? (
@@ -206,6 +212,61 @@ function StudyCard({ study }: { study: Study }) {
         </CardContent>
       </Card>
     </Link>
+  );
+}
+
+function ScheduleBanner() {
+  const { data: schedule } = useQuery({
+    queryKey: ['my-schedules'],
+    queryFn: () => scheduleApi.getMySchedules(),
+    staleTime: 0,
+  });
+
+  if (!schedule) return null;
+
+  const today = new Date();
+  const label = schedule.monthName || schedule.months;
+
+  const candidates: { text: string; color: string; days: number }[] = [];
+
+  if (schedule.recruitStartDate) {
+    const days = differenceInDays(new Date(schedule.recruitStartDate), today);
+    if (days > 0) {
+      candidates.push({ text: `${label} 스터디 모집 ${days}일 전이에요!`, color: 'text-blue-600', days });
+    } else if (days === 0) {
+      candidates.push({ text: `${label} 스터디 모집이 오늘 시작돼요!`, color: 'text-green-600', days: 0 });
+    }
+  }
+
+  if (schedule.recruitEndDate) {
+    const days = differenceInDays(new Date(schedule.recruitEndDate), today);
+    if (days > 0) {
+      candidates.push({ text: `${label} 스터디 모집 마감 ${days}일 전이에요!`, color: 'text-orange-600', days });
+    } else if (days === 0) {
+      candidates.push({ text: `${label} 스터디 모집이 오늘 마감돼요!`, color: 'text-red-600', days: 0 });
+    }
+  }
+
+  if (schedule.studyEndDate) {
+    const days = differenceInDays(new Date(schedule.studyEndDate), today);
+    if (days > 0) {
+      candidates.push({ text: `${label} 스터디 종료 ${days}일 전이에요!`, color: 'text-purple-600', days });
+    } else if (days === 0) {
+      candidates.push({ text: `${label} 스터디가 오늘 종료돼요!`, color: 'text-red-600', days: 0 });
+    }
+  }
+
+  if (candidates.length === 0) return null;
+
+  const closest = candidates.sort((a, b) => a.days - b.days)[0];
+
+  return (
+    <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-muted/50 border border-border/60">
+      <Calendar className={cn("h-4 w-4 flex-shrink-0", closest.color)} />
+      <span className={cn("text-sm font-medium", closest.color)}>
+        {closest.text}
+      </span>
+    </div>
   );
 }
 

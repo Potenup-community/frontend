@@ -40,7 +40,7 @@ export function Sidebar() {
                   <UserAvatar
                     src={user.profileImageUrl}
                     name={user.name}
-                    className="h-16 w-16 border-4 border-card shadow-lg"
+                    className="h-28 w-28 border-4 border-card shadow-lg"
                   />
                   <h3 className="mt-3 font-semibold text-lg">{user.name}</h3>
                   <p className="text-sm text-muted-foreground">{user.trackName}</p>

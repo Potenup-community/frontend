@@ -43,16 +43,14 @@ export const STUDY_STATUS = {
 export type StudyStatusType = keyof typeof STUDY_STATUS;
 
 export const STUDY_STATUS_LABELS: Record<StudyStatusType, string> = {
-  PENDING: '승인대기',
-  APPROVED: '모집중',
+  PENDING: '모집중',
+  APPROVED: '승인 완료',
   CLOSED: '모집마감',
   REJECTED: '거절됨',
 };
 
 // Budget types
 export const BUDGET_TYPES = {
-  FREE: 'FREE',
-  PAID: 'PAID',
   BOOK: 'BOOK',
   MEAL: 'MEAL',
 } as const;
@@ -60,8 +58,6 @@ export const BUDGET_TYPES = {
 export type BudgetType = keyof typeof BUDGET_TYPES;
 
 export const BUDGET_LABELS: Record<BudgetType, string> = {
-  FREE: '무료',
-  PAID: '유료',
   BOOK: '책',
   MEAL: '식비',
 };

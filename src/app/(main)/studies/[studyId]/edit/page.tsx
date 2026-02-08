@@ -34,7 +34,8 @@ export default function EditStudyPage() {
     name: '',
     description: '',
     capacity: 5,
-    budget: 'FREE',
+    budget: 'MEAL',
+    budgetExplain: '',
     chatUrl: '',
     refUrl: '',
     tags: [],
@@ -56,6 +57,7 @@ export default function EditStudyPage() {
         description: study.description,
         capacity: study.capacity,
         budget: study.budget,
+        budgetExplain: study.budgetExplain || '',
         chatUrl: study.chatUrl || '',
         refUrl: study.refUrl || '',
         tags: study.tags || [],
@@ -94,6 +96,10 @@ export default function EditStudyPage() {
 
     if (formData.capacity && formData.capacity < VALIDATION.STUDY_CAPACITY_MIN) {
       newErrors.capacity = `최소 ${VALIDATION.STUDY_CAPACITY_MIN}명 이상이어야 합니다.`;
+    }
+
+    if (!formData.budgetExplain?.trim()) {
+      newErrors.budgetExplain = '비용 설명을 입력해주세요.';
     }
 
     if (!formData.chatUrl?.trim()) {
@@ -271,7 +277,7 @@ export default function EditStudyPage() {
                   비용 <span className="text-destructive">*</span>
                 </Label>
                 <Select
-                  value={formData.budget || 'FREE'}
+                  value={formData.budget || 'MEAL'}
                   onValueChange={(value) => setFormData({ ...formData, budget: value as BudgetType })}
                 >
                   <SelectTrigger>
@@ -285,6 +291,21 @@ export default function EditStudyPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="budgetExplain">
+                  비용 설명 <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="budgetExplain"
+                  value={formData.budgetExplain || ''}
+                  onChange={(e) => setFormData({ ...formData, budgetExplain: e.target.value })}
+                  placeholder="예: 도서명 혹은 쇼킹피자"
+                />
+                {errors.budgetExplain && (
+                  <p className="text-sm text-destructive">{errors.budgetExplain}</p>
+                )}
               </div>
             </div>
 

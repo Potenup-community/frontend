@@ -24,6 +24,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { Header } from '@/components/layout/Header';
 import { v4 as uuidv4 } from 'uuid';
+import { useAuth } from '@/contexts/AuthContext';
 
 const TOPIC_OPTIONS = [
   { value: 'KNOWLEDGE', label: '지식줍줍' },
@@ -31,10 +32,16 @@ const TOPIC_OPTIONS = [
   { value: 'SMALL_TALK', label: '자유게시판' },
 ];
 
+const ADMIN_TOPIC_OPTIONS = [
+  { value: 'NOTICE', label: '공지사항' },
+  ...TOPIC_OPTIONS,
+];
+
 export default function PostWrite() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
+  const { user } = useAuth();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -170,7 +177,7 @@ export default function PostWrite() {
               <SelectValue placeholder="카테고리 선택" />
             </SelectTrigger>
             <SelectContent>
-              {TOPIC_OPTIONS.map((option) => (
+              {(user?.role === 'ADMIN' ? ADMIN_TOPIC_OPTIONS : TOPIC_OPTIONS).map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>

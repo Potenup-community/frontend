@@ -1059,13 +1059,20 @@ function ScheduleManagementTab() {
               </select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="month">차수 (월)</Label>
-              <Input
-                id="month"
-                value={formData.month}
-                onChange={(e) => setFormData({ ...formData, month: e.target.value })}
-                placeholder="예: 1, 2, 3..."
-              />
+              <Label htmlFor="month">차수</Label>
+              <Select value={formData.month} onValueChange={(value) => setFormData({ ...formData, month: value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="차수 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="FIRST">1차</SelectItem>
+                  <SelectItem value="SECOND">2차</SelectItem>
+                  <SelectItem value="THIRD">3차</SelectItem>
+                  <SelectItem value="FOURTH">4차</SelectItem>
+                  <SelectItem value="FIFTH">5차</SelectItem>
+                  <SelectItem value="SIXTH">6차</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="recruitStartDate">모집 시작일</Label>
