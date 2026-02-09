@@ -254,7 +254,7 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">비용</span>
+                <span className="text-muted-foreground">지원 항목</span>
                 <Badge variant="outline">
                   {BUDGET_LABELS[study.budget as keyof typeof BUDGET_LABELS] || study.budget}
                 </Badge>

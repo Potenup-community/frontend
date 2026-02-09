@@ -302,27 +302,27 @@ function ScheduleBanner() {
   if (schedule.recruitStartDate) {
     const days = differenceInDays(new Date(schedule.recruitStartDate), today);
     if (days > 0) {
-      candidates.push({ text: `${label} 스터디 모집 ${days}일 전이에요!`, color: 'text-blue-600', days });
+      candidates.push({ text: `${label}차 스터디 모집 ${days}일 전이에요!`, color: 'text-blue-600', days });
     } else if (days === 0) {
-      candidates.push({ text: `${label} 스터디 모집이 오늘 시작돼요!`, color: 'text-green-600', days: 0 });
+      candidates.push({ text: `${label}차 스터디 모집이 오늘 시작돼요!`, color: 'text-green-600', days: 0 });
     }
   }
 
   if (schedule.recruitEndDate) {
     const days = differenceInDays(new Date(schedule.recruitEndDate), today);
     if (days > 0) {
-      candidates.push({ text: `${label} 스터디 모집 마감 ${days}일 전이에요!`, color: 'text-orange-600', days });
+      candidates.push({ text: `${label}차 스터디 모집 마감 ${days}일 전이에요!`, color: 'text-orange-600', days });
     } else if (days === 0) {
-      candidates.push({ text: `${label} 스터디 모집이 오늘 마감돼요!`, color: 'text-red-600', days: 0 });
+      candidates.push({ text: `${label}차 스터디 모집이 오늘 마감돼요!`, color: 'text-red-600', days: 0 });
     }
   }
 
   if (schedule.studyEndDate) {
     const days = differenceInDays(new Date(schedule.studyEndDate), today);
     if (days > 0) {
-      candidates.push({ text: `${label} 스터디 종료 ${days}일 전이에요!`, color: 'text-purple-600', days });
+      candidates.push({ text: `${label}차 스터디 종료 ${days}일 전이에요!`, color: 'text-purple-600', days });
     } else if (days === 0) {
-      candidates.push({ text: `${label} 스터디가 오늘 종료돼요!`, color: 'text-red-600', days: 0 });
+      candidates.push({ text: `${label}차 스터디가 오늘 종료돼요!`, color: 'text-red-600', days: 0 });
     }
   }
 

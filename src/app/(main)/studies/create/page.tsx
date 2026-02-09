@@ -42,7 +42,7 @@ export default function CreateStudyPage() {
   const createMutation = useMutation({
     mutationFn: (data: StudyCreateRequest) => studyApi.createStudy(data),
     onSuccess: (data) => {
-      toast.success('스터디가 생성되었습니다. 관리자 승인 후 공개됩니다.');
+      toast.success('스터디가 성공적으로 개설 되었습니다.');
       router.push(`/studies/${data.studyId}`);
     },
     onError: (error: any) => {
@@ -356,7 +356,7 @@ export default function CreateStudyPage() {
         <Card className="mt-6 border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950">
           <CardContent className="pt-6">
             <p className="text-sm text-amber-800 dark:text-amber-200">
-              스터디 개설 후 관리자 승인을 거쳐 공개됩니다. 승인까지 시간이 소요될 수 있습니다.
+              스터디가 성공적으로 개설 되었습니다.
             </p>
           </CardContent>
         </Card>

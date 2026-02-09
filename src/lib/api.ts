@@ -761,7 +761,7 @@ export interface ScheduleQueryResponse {
 export const scheduleApi = {
   // 내 트랙 스터디 일정 조회
   getMySchedules: () =>
-    api.get<MySchedule>('/studies/schedules/me'),
+    api.get<MySchedule>('/studies/schedules/my/current'),
 
   // 관리자용 스터디 일정 조회 (trackIds 필터)
   getSchedules: (trackIds: number[]) =>
