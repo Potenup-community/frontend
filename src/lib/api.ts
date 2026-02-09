@@ -729,7 +729,7 @@ export const studyApi = {
 
   // 내 스터디 신청 목록 조회
   getMyRecruitments: () =>
-    api.get<Recruitment[]>('/users/me/recruitments'),
+    api.get<{ content: Recruitment[] }>('/users/me/recruitments'),
 
   // 스터디 승인 (관리자)
   approveStudy: (studyId: number) =>

@@ -48,7 +48,7 @@ export default function MyStudyRecruitmentsPage() {
     },
   });
 
-  const recruitments = Array.isArray(recruitmentsData) ? recruitmentsData : recruitmentsData?.content || [];
+  const recruitments = recruitmentsData?.content || [];
 
   if (isLoading) {
     return <RecruitmentListSkeleton />;
