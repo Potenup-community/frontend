@@ -68,7 +68,7 @@ interface AdminUser {
   trackId: number;
   trackName: string;
   profileImageUrl?: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
   createdAt: string;
 }
 
@@ -216,7 +216,7 @@ function UserManagementTab() {
         page: 0,
         size: 20
       });
-      return res.content || [];
+      return (res.content || []) as AdminUser[];
     },
   });
 
@@ -229,7 +229,7 @@ function UserManagementTab() {
         page: 0,
         size: 20
       });
-      return res.content || [];
+      return (res.content || []) as AdminUser[];
     },
   });
 
@@ -1350,7 +1350,7 @@ function UserCard({
               </Button>
             </div>
           )}
-          {!showActions && user.status === 'APPROVED' && (
+          {!showActions && user.status === 'ACCEPTED' && (
             <Badge className="bg-green-100 text-green-700 hover:bg-green-100 self-center px-3 py-1">
               승인됨
             </Badge>
