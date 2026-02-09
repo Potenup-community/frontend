@@ -30,7 +30,8 @@ export default function CreateStudyPage() {
     name: '',
     description: '',
     capacity: 5,
-    budget: 'FREE',
+    budget: 'MEAL',
+    budgetExplain: '',
     chatUrl: '',
     refUrl: '',
     tags: [],
@@ -41,7 +42,7 @@ export default function CreateStudyPage() {
   const createMutation = useMutation({
     mutationFn: (data: StudyCreateRequest) => studyApi.createStudy(data),
     onSuccess: (data) => {
-      toast.success('스터디가 생성되었습니다. 관리자 승인 후 공개됩니다.');
+      toast.success('스터디가 성공적으로 개설 되었습니다.');
       router.push(`/studies/${data.studyId}`);
     },
     onError: (error: any) => {
@@ -70,13 +71,17 @@ export default function CreateStudyPage() {
       newErrors.capacity = `최소 ${VALIDATION.STUDY_CAPACITY_MIN}명 이상이어야 합니다.`;
     }
 
+    if (!formData.budgetExplain.trim()) {
+      newErrors.budgetExplain = '비용 설명을 입력해주세요.';
+    }
+
     if (!formData.chatUrl.trim()) {
       newErrors.chatUrl = '오픈 채팅방 URL을 입력해주세요.';
     } else if (!isValidUrl(formData.chatUrl)) {
       newErrors.chatUrl = '올바른 URL 형식이 아닙니다.';
     }
 
-    if (formData.refUrl && !isValidUrl(formData.refUrl)) {
+    if (formData.refUrl?.trim() && !isValidUrl(formData.refUrl.trim())) {
       newErrors.refUrl = '올바른 URL 형식이 아닙니다.';
     }
 
@@ -96,7 +101,8 @@ export default function CreateStudyPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
-    createMutation.mutate(formData);
+    const submitData = { ...formData, refUrl: formData.refUrl?.trim() || undefined };
+    createMutation.mutate(submitData);
   };
 
   const handleAddTag = () => {
@@ -235,7 +241,7 @@ export default function CreateStudyPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="budget">
-                  비용 <span className="text-destructive">*</span>
+                  희망 지원 항목 <span className="text-destructive">*</span>
                 </Label>
                 <Select
                   value={formData.budget}
@@ -252,6 +258,21 @@ export default function CreateStudyPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="budgetExplain">
+                  희망 지원 내용 <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="budgetExplain"
+                  value={formData.budgetExplain}
+                  onChange={(e) => setFormData({ ...formData, budgetExplain: e.target.value })}
+                  placeholder="예: 도서명 혹은 쇼킹피자"
+                />
+                {errors.budgetExplain && (
+                  <p className="text-sm text-destructive">{errors.budgetExplain}</p>
+                )}
               </div>
             </div>
 
@@ -335,7 +356,7 @@ export default function CreateStudyPage() {
         <Card className="mt-6 border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950">
           <CardContent className="pt-6">
             <p className="text-sm text-amber-800 dark:text-amber-200">
-              스터디 개설 후 관리자 승인을 거쳐 공개됩니다. 승인까지 시간이 소요될 수 있습니다.
+              스터디가 성공적으로 개설 되었습니다.
             </p>
           </CardContent>
         </Card>

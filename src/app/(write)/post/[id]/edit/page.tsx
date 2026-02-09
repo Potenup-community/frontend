@@ -111,6 +111,25 @@ export default function PostEdit() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    if (!file.type.startsWith('image/')) {
+      toast.error('이미지 파일만 업로드할 수 있습니다. (JPG, PNG, GIF, WEBP, SVG)');
+      e.target.value = '';
+      return;
+    }
+    if (!allowedTypes.includes(file.type)) {
+      toast.error(`지원하지 않는 이미지 형식입니다. (${file.type.split('/')[1]})\n지원 형식: JPG, PNG, GIF, WEBP, SVG`);
+      e.target.value = '';
+      return;
+    }
+    const maxSize = file.type === 'image/gif' ? 3 * 1024 * 1024 : 5 * 1024 * 1024;
+    const maxLabel = file.type === 'image/gif' ? '3MB' : '5MB';
+    if (file.size > maxSize) {
+      toast.error(`파일 크기가 너무 큽니다. (${(file.size / 1024 / 1024).toFixed(1)}MB)\n${file.type === 'image/gif' ? 'GIF는' : '이미지는'} 최대 ${maxLabel}까지 업로드할 수 있습니다.`);
+      e.target.value = '';
+      return;
+    }
+
     const toastId = toast.loading('이미지 업로드 중...');
 
     try {
@@ -122,8 +141,14 @@ export default function PostEdit() {
       const markdownSrc = response.url || response.relativePath;
       insertMarkdown(`![${file.name}](${markdownSrc})`);
       toast.success('이미지가 업로드되었습니다.', { id: toastId });
-    } catch {
-      toast.error('이미지 업로드에 실패했습니다.', { id: toastId });
+    } catch (error: any) {
+      let message = '이미지 업로드에 실패했습니다. 잠시 후 다시 시도해주세요.';
+      if (error?.message?.includes('Failed to fetch') || error?.message?.includes('NetworkError')) {
+        message = '서버와 연결할 수 없습니다. 네트워크 상태를 확인하거나 파일 크기를 줄여주세요.';
+      } else if (error?.message) {
+        message = error.message;
+      }
+      toast.error(message, { id: toastId });
     } finally {
       if (e.target) e.target.value = '';
     }

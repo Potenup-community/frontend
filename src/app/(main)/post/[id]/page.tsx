@@ -328,25 +328,25 @@ export default function PostDetail() {
       </Card>
 
       {/* Post Navigation (이전/다음 게시글) */}
-      {((post as any).previousPost || (post as any).nextPost) && (
+      {((post as any).previousPost?.previousPostId || (post as any).nextPost?.nextPostId) && (
         <Card>
           <CardContent className="p-4 flex flex-col gap-2">
-            {(post as any).previousPost && (
+            {(post as any).previousPost?.previousPostId && (
               <button
                 onClick={() => router.push(`/post/${(post as any).previousPost.previousPostId}`)}
                 className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
               >
                 <ChevronUp className="h-4 w-4 flex-shrink-0" />
-                <span className="truncate">이전글: {(post as any).previousPost.previousPostTitle}</span>
+                <span className="truncate">다음글: {(post as any).previousPost.previousPostTitle}</span>
               </button>
             )}
-            {(post as any).nextPost && (
+            {(post as any).nextPost?.nextPostId && (
               <button
                 onClick={() => router.push(`/post/${(post as any).nextPost.nextPostId}`)}
                 className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
               >
                 <ChevronDown className="h-4 w-4 flex-shrink-0" />
-                <span className="truncate">다음글: {(post as any).nextPost.nextPostTitle}</span>
+                <span className="truncate">이전글: {(post as any).nextPost.nextPostTitle}</span>
               </button>
             )}
           </CardContent>
@@ -588,7 +588,7 @@ function CommentItem({ comment, postId, currentUserId, depth = 0 }: {
           </div>
         ) : (
           <p className={cn('text-sm mt-1 whitespace-pre-wrap', comment.isDeleted && 'text-muted-foreground italic')}>
-            {comment.isDeleted ? '삭제된 댓글입니다.' : renderContentWithMentions(comment.content, comment.mentionedUsers)}
+            {comment.isDeleted ? '삭제된 댓글입니다.' : renderContentWithMentions(comment.content)}
           </p>
         )}
 
@@ -677,18 +677,15 @@ function CommentItem({ comment, postId, currentUserId, depth = 0 }: {
   );
 }
 
-function renderContentWithMentions(content: string, mentionedUsers?: Array<{ id: number; name: string }>) {
-  if (!mentionedUsers || mentionedUsers.length === 0) return content;
+function renderContentWithMentions(content: string) {
+  const parts = content.split(/(@\S+)/g);
 
-  const mentionNames = mentionedUsers.map((u) => u.name);
-  const escaped = mentionNames.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const pattern = new RegExp('@(' + escaped.join('|') + ')', 'g');
-  const parts = content.split(pattern);
+  if (parts.length === 1) return content;
 
   return parts.map((part, i) =>
-    mentionNames.includes(part) ? (
-      <span key={i} className="text-primary bg-primary/10 px-1.5 py-0.5 rounded-md font-medium mx-0.5">
-        @{part}
+    part.startsWith('@') && part.length > 1 ? (
+      <span key={i} className="text-orange-500 dark:text-orange-400 bg-orange-100 dark:bg-orange-500/20 px-1 py-px rounded text-sm font-semibold cursor-default">
+        {part}
       </span>
     ) : (
       part
@@ -721,8 +718,10 @@ function MentionTextarea({
     staleTime: 60 * 1000,
   });
 
+  const { user: currentUser } = useAuth();
+
   const filteredUsers = (Array.isArray(mentionUsers) ? mentionUsers : []).filter(
-    (u: UserSummary) => u.name.toLowerCase().includes(mentionQuery.toLowerCase())
+    (u: UserSummary) => u.userId !== currentUser?.id && u.name.toLowerCase().includes(mentionQuery.toLowerCase())
   );
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

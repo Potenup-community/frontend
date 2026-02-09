@@ -460,6 +460,7 @@ export interface Study {
   leader: {
     id: number;
     name: string;
+    trackId?: number;
     trackName?: string;
     profileImageUrl?: string;
   };
@@ -471,6 +472,7 @@ export interface Study {
     studyEndDate: string;
   };
   isLeader: boolean;
+  isParticipant?: boolean;
   isRecruitmentClosed: boolean;
   createdAt: string;
   updatedAt: string;
@@ -546,7 +548,7 @@ export const mapNotificationResponse = (item: NotificationResponse): Notificatio
 // ==================== Study Related Types ====================
 
 export type StudyStatus = 'PENDING' | 'APPROVED' | 'CLOSED' | 'REJECTED';
-export type BudgetType = 'FREE' | 'PAID' | 'BOOK' | 'MEAL';
+export type BudgetType = 'BOOK' | 'MEAL';
 export type RecruitmentStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface StudyLeader {
@@ -565,10 +567,26 @@ export interface StudySchedule {
   studyEndDate: string;
 }
 
+export interface StudyParticipant {
+  id: number;
+  name: string;
+  trackId?: number;
+  trackName?: string;
+  joinedAt?: string;
+  profileImageUrl?: string;
+}
+
 export interface StudyDetail {
   id: number;
   scheduleId?: number;
   scheduleName?: string;
+  schedule?: {
+    id: number;
+    month: string;
+    recruitStartDate: string;
+    recruitEndDate: string;
+    studyEndDate: string;
+  };
   leaderId: number;
   name: string;
   description: string;
@@ -576,6 +594,7 @@ export interface StudyDetail {
   currentMemberCount: number;
   status: StudyStatus;
   budget: BudgetType;
+  budgetExplain?: string;
   chatUrl?: string;
   refUrl?: string;
   tags: string[];
@@ -583,6 +602,8 @@ export interface StudyDetail {
   updatedAt: string;
   isRecruitmentClosed: boolean;
   isLeader: boolean;
+  isParticipant?: boolean;
+  participants?: StudyParticipant[];
   leader?: StudyLeader;
 }
 
@@ -591,6 +612,7 @@ export interface StudyCreateRequest {
   description: string;
   capacity: number;
   budget: BudgetType;
+  budgetExplain: string;
   chatUrl: string;
   refUrl?: string;
   tags?: string[];
@@ -601,15 +623,12 @@ export interface StudyUpdateRequest {
   description?: string;
   capacity?: number;
   budget?: BudgetType;
-  scheduleId?: number;
+  budgetExplain?: string;
   chatUrl?: string;
   refUrl?: string;
   tags?: string[];
 }
 
-export interface StudyRecruitRequest {
-  appeal: string;
-}
 
 export interface Recruitment {
   id: number;
@@ -618,11 +637,7 @@ export interface Recruitment {
   trackName?: string;
   userId: number;
   userName: string;
-  userProfileImageUrl?: string;
-  appeal: string;
-  status: RecruitmentStatus;
   createdAt: string;
-  approvedAt?: string;
 }
 
 // ==================== Schedule Related Types ====================
@@ -681,6 +696,7 @@ export const studyApi = {
   getStudies: (params?: {
     trackId?: number;
     status?: StudyStatus;
+    sortType?: 'DESC' | 'ASC';
     page?: number;
     size?: number;
   }) => api.get<PaginatedResponse<Study>>('/studies', params),
@@ -699,9 +715,9 @@ export const studyApi = {
   // 스터디 삭제
   deleteStudy: (studyId: number) => api.delete<void>(`/studies/${studyId}`),
 
-  // 스터디 신청
-  applyStudy: (studyId: number, data: StudyRecruitRequest) =>
-    api.post<void>(`/studies/${studyId}/recruitments`, data),
+  // 스터디 참가
+  joinStudy: (studyId: number) =>
+    api.post<void>(`/studies/${studyId}/recruitments`, {}),
 
   // 스터디 신청 취소
   cancelRecruitment: (studyId: number, recruitmentId: number) =>
@@ -709,32 +725,48 @@ export const studyApi = {
 
   // 스터디 신청자 목록 조회 (스터디장)
   getRecruitments: (studyId: number) =>
-    api.get<{ content: Recruitment[] }>(`/users/me/studies/${studyId}/recruitments`),
-
-  // 스터디 신청 승인 (스터디장)
-  approveRecruitment: (studyId: number, recruitmentId: number) =>
-    api.patch<void>(`/studies/${studyId}/recruitments/${recruitmentId}/approve`),
-
-  // 스터디 신청 거절 (스터디장)
-  rejectRecruitment: (studyId: number, recruitmentId: number) =>
-    api.patch<void>(`/studies/${studyId}/recruitments/${recruitmentId}/reject`),
+    api.get<Recruitment[]>(`/users/me/studies/${studyId}/recruitments`),
 
   // 내 스터디 신청 목록 조회
   getMyRecruitments: () =>
-    api.get<{ content: Recruitment[] }>('/users/me/recruitments'),
+    api.get<Recruitment[]>('/users/me/recruitments'),
 
   // 스터디 승인 (관리자)
   approveStudy: (studyId: number) =>
     api.patch<void>(`/studies/${studyId}/approve`),
-
-  // 스터디 거절 (관리자)
-  rejectStudy: (studyId: number) =>
-    api.patch<void>(`/studies/${studyId}/reject`),
 };
 
 // ==================== Schedule API Functions ====================
 
+export interface MySchedule {
+  id: number;
+  trackId: number;
+  months: string;
+  monthName: string;
+  recruitStartDate: string;
+  recruitEndDate: string;
+  studyEndDate: string;
+}
+
+export interface ScheduleQueryResponse {
+  id: number;
+  trackId: number;
+  months: string;
+  monthName: string;
+  recruitStartDate: string;
+  recruitEndDate: string;
+  studyEndDate: string;
+}
+
 export const scheduleApi = {
+  // 내 트랙 스터디 일정 조회
+  getMySchedules: () =>
+    api.get<MySchedule>('/studies/schedules/my/current'),
+
+  // 관리자용 스터디 일정 조회 (trackIds 필터)
+  getSchedules: (trackIds: number[]) =>
+    api.get<Record<string, ScheduleQueryResponse[]>>('/studies/schedules', { trackIds } as any),
+
   // 스터디 일정 생성
   createSchedule: (data: ScheduleCreateRequest) =>
     api.post<{ id: number; trackId: number; months: string }>('/studies/schedules', data),

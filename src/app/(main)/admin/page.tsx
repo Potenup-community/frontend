@@ -55,7 +55,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, adminApi, studyApi, scheduleApi, AdminTrack, Study, Schedule, ScheduleCreateRequest } from '@/lib/api';
+import { api, adminApi, studyApi, scheduleApi, AdminTrack, Study, Schedule, ScheduleCreateRequest, ScheduleUpdateRequest, ScheduleQueryResponse } from '@/lib/api';
 import { toast } from 'sonner';
 import { formatDistanceToNow, format } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -106,7 +106,9 @@ export default function AdminPage() {
 
 function AdminContent() {
   const router = useRouter();
-  const [mainTab, setMainTab] = useState('users');
+  const [mainTab, setMainTab] = useState('user-track');
+  const [userSubTab, setUserSubTab] = useState('users');
+  const [studySubTab, setStudySubTab] = useState('approval');
 
   return (
     <div className="space-y-6">
@@ -126,39 +128,57 @@ function AdminContent() {
 
       {/* Main Tabs */}
       <Tabs value={mainTab} onValueChange={setMainTab}>
-        <TabsList className="w-full grid grid-cols-4">
-          <TabsTrigger value="users" className="gap-2">
+        <TabsList className="w-full grid grid-cols-2">
+          <TabsTrigger value="user-track" className="gap-2">
             <Users className="h-4 w-4" />
-            <span className="hidden sm:inline">유저 관리</span>
+            유저 / 트랙 관리
           </TabsTrigger>
-          <TabsTrigger value="tracks" className="gap-2">
-            <GraduationCap className="h-4 w-4" />
-            <span className="hidden sm:inline">트랙 관리</span>
-          </TabsTrigger>
-          <TabsTrigger value="studies" className="gap-2">
+          <TabsTrigger value="study" className="gap-2">
             <BookOpen className="h-4 w-4" />
-            <span className="hidden sm:inline">스터디 승인</span>
-          </TabsTrigger>
-          <TabsTrigger value="schedules" className="gap-2">
-            <Calendar className="h-4 w-4" />
-            <span className="hidden sm:inline">일정 관리</span>
+            스터디 관리
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="users" className="mt-6">
-          <UserManagementTab />
+        <TabsContent value="user-track" className="mt-6">
+          <Tabs value={userSubTab} onValueChange={setUserSubTab}>
+            <TabsList>
+              <TabsTrigger value="users" className="gap-2">
+                <Users className="h-4 w-4" />
+                유저 관리
+              </TabsTrigger>
+              <TabsTrigger value="tracks" className="gap-2">
+                <GraduationCap className="h-4 w-4" />
+                트랙 관리
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="users" className="mt-4">
+              <UserManagementTab />
+            </TabsContent>
+            <TabsContent value="tracks" className="mt-4">
+              <TrackManagementTab />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
-        <TabsContent value="tracks" className="mt-6">
-          <TrackManagementTab />
-        </TabsContent>
-
-        <TabsContent value="studies" className="mt-6">
-          <StudyApprovalTab />
-        </TabsContent>
-
-        <TabsContent value="schedules" className="mt-6">
-          <ScheduleManagementTab />
+        <TabsContent value="study" className="mt-6">
+          <Tabs value={studySubTab} onValueChange={setStudySubTab}>
+            <TabsList>
+              <TabsTrigger value="approval" className="gap-2">
+                <BookOpen className="h-4 w-4" />
+                스터디 승인
+              </TabsTrigger>
+              <TabsTrigger value="schedules" className="gap-2">
+                <Calendar className="h-4 w-4" />
+                일정 관리
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="approval" className="mt-4">
+              <StudyApprovalTab />
+            </TabsContent>
+            <TabsContent value="schedules" className="mt-4">
+              <ScheduleManagementTab />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
 
@@ -791,7 +811,6 @@ function TrackManagementTab() {
 function StudyApprovalTab() {
   const queryClient = useQueryClient();
   const [selectedStudy, setSelectedStudy] = useState<Study | null>(null);
-  const [actionType, setActionType] = useState<'approve' | 'reject' | null>(null);
 
   const { data: pendingStudies, isLoading } = useQuery({
     queryKey: ['admin', 'studies', 'pending'],
@@ -807,41 +826,16 @@ function StudyApprovalTab() {
       toast.success('스터디가 승인되었습니다.');
       queryClient.invalidateQueries({ queryKey: ['admin', 'studies'] });
       setSelectedStudy(null);
-      setActionType(null);
     },
     onError: () => {
       toast.error('스터디 승인에 실패했습니다.');
     },
   });
 
-  const rejectMutation = useMutation({
-    mutationFn: (studyId: number) => studyApi.rejectStudy(studyId),
-    onSuccess: () => {
-      toast.success('스터디가 거절되었습니다.');
-      queryClient.invalidateQueries({ queryKey: ['admin', 'studies'] });
-      setSelectedStudy(null);
-      setActionType(null);
-    },
-    onError: () => {
-      toast.error('스터디 거절에 실패했습니다.');
-    },
-  });
-
-  const handleAction = (study: Study, action: 'approve' | 'reject') => {
-    setSelectedStudy(study);
-    setActionType(action);
+  const confirmApprove = () => {
+    if (!selectedStudy) return;
+    approveMutation.mutate(selectedStudy.id);
   };
-
-  const confirmAction = () => {
-    if (!selectedStudy || !actionType) return;
-    if (actionType === 'approve') {
-      approveMutation.mutate(selectedStudy.id);
-    } else {
-      rejectMutation.mutate(selectedStudy.id);
-    }
-  };
-
-  const isPending = approveMutation.isPending || rejectMutation.isPending;
 
   return (
     <div className="space-y-6">
@@ -899,16 +893,7 @@ function StudyApprovalTab() {
                     )}
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => handleAction(study, 'reject')}
-                    >
-                      <XCircle className="h-4 w-4 mr-1" />
-                      거절
-                    </Button>
-                    <Button size="sm" onClick={() => handleAction(study, 'approve')}>
+                    <Button size="sm" onClick={() => setSelectedStudy(study)}>
                       <CheckCircle className="h-4 w-4 mr-1" />
                       승인
                     </Button>
@@ -921,39 +906,26 @@ function StudyApprovalTab() {
       )}
 
       {/* Confirmation Dialog */}
-      <AlertDialog open={!!selectedStudy && !!actionType} onOpenChange={(open) => {
-        if (!open) {
-          setSelectedStudy(null);
-          setActionType(null);
-        }
+      <AlertDialog open={!!selectedStudy} onOpenChange={(open) => {
+        if (!open) setSelectedStudy(null);
       }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              스터디 {actionType === 'approve' ? '승인' : '거절'}
-            </AlertDialogTitle>
+            <AlertDialogTitle>스터디 승인</AlertDialogTitle>
             <AlertDialogDescription>
-              "{selectedStudy?.name}" 스터디를 {actionType === 'approve' ? '승인' : '거절'}하시겠습니까?
-              {actionType === 'reject' && (
-                <span className="block mt-2 text-destructive">
-                  거절된 스터디는 사용자에게 표시되지 않습니다.
-                </span>
-              )}
+              "{selectedStudy?.name}" 스터디를 승인하시겠습니까?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction
-              onClick={confirmAction}
-              disabled={isPending}
-              className={actionType === 'reject' ? 'bg-destructive hover:bg-destructive/90' : ''}
+              onClick={confirmApprove}
+              disabled={approveMutation.isPending}
             >
-              {isPending ? (
+              {approveMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
-              ) : actionType === 'approve' ? (
-                '승인'
               ) : (
-                '거절'
+                '승인'
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -964,9 +936,17 @@ function StudyApprovalTab() {
 }
 
 // ==================== Schedule Management Tab ====================
+const MONTH_LABELS: Record<string, string> = {
+  FIRST: '1차', SECOND: '2차', THIRD: '3차',
+  FOURTH: '4차', FIFTH: '5차', SIXTH: '6차',
+};
+
 function ScheduleManagementTab() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<ScheduleQueryResponse | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ScheduleQueryResponse | null>(null);
+  const [selectedTrackFilter, setSelectedTrackFilter] = useState<number>(0);
   const [formData, setFormData] = useState<ScheduleCreateRequest>({
     trackId: 0,
     month: '',
@@ -983,6 +963,27 @@ function ScheduleManagementTab() {
     },
   });
 
+  const trackIds = selectedTrackFilter
+    ? [selectedTrackFilter]
+    : (tracks?.map((t) => t.trackId) || []);
+
+  const { data: schedulesMap, isLoading } = useQuery({
+    queryKey: ['admin', 'schedules', trackIds],
+    queryFn: () => scheduleApi.getSchedules(trackIds),
+    enabled: trackIds.length > 0,
+  });
+
+  const allSchedules: (ScheduleQueryResponse & { trackName?: string })[] = [];
+  if (schedulesMap) {
+    for (const [trackId, items] of Object.entries(schedulesMap)) {
+      const track = tracks?.find((t) => t.trackId === Number(trackId));
+      for (const item of items) {
+        allSchedules.push({ ...item, trackName: track?.trackName });
+      }
+    }
+  }
+  allSchedules.sort((a, b) => a.trackId - b.trackId || a.months.localeCompare(b.months));
+
   const createMutation = useMutation({
     mutationFn: (data: ScheduleCreateRequest) => scheduleApi.createSchedule(data),
     onSuccess: () => {
@@ -991,19 +992,33 @@ function ScheduleManagementTab() {
       setIsCreateOpen(false);
       resetForm();
     },
-    onError: () => {
-      toast.error('스터디 일정 생성에 실패했습니다.');
+    onError: () => toast.error('스터디 일정 생성에 실패했습니다.'),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: ScheduleUpdateRequest }) =>
+      scheduleApi.updateSchedule(id, data),
+    onSuccess: () => {
+      toast.success('스터디 일정이 수정되었습니다.');
+      queryClient.invalidateQueries({ queryKey: ['admin', 'schedules'] });
+      setEditingSchedule(null);
+      resetForm();
     },
+    onError: () => toast.error('스터디 일정 수정에 실패했습니다.'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => scheduleApi.deleteSchedule(id),
+    onSuccess: () => {
+      toast.success('스터디 일정이 삭제되었습니다.');
+      queryClient.invalidateQueries({ queryKey: ['admin', 'schedules'] });
+      setDeleteTarget(null);
+    },
+    onError: () => toast.error('스터디 일정 삭제에 실패했습니다. 참조하는 스터디가 있을 수 있습니다.'),
   });
 
   const resetForm = () => {
-    setFormData({
-      trackId: 0,
-      month: '',
-      recruitStartDate: '',
-      recruitEndDate: '',
-      studyEndDate: '',
-    });
+    setFormData({ trackId: 0, month: '', recruitStartDate: '', recruitEndDate: '', studyEndDate: '' });
   };
 
   const handleCreate = () => {
@@ -1014,25 +1029,115 @@ function ScheduleManagementTab() {
     createMutation.mutate(formData);
   };
 
+  const handleUpdate = () => {
+    if (!editingSchedule) return;
+    updateMutation.mutate({
+      id: editingSchedule.id,
+      data: {
+        trackId: formData.trackId || undefined,
+        months: formData.month || undefined,
+        recruitStartDate: formData.recruitStartDate || undefined,
+        recruitEndDate: formData.recruitEndDate || undefined,
+        studyEndDate: formData.studyEndDate || undefined,
+      },
+    });
+  };
+
+  const openEditDialog = (schedule: ScheduleQueryResponse) => {
+    setEditingSchedule(schedule);
+    setFormData({
+      trackId: schedule.trackId,
+      month: schedule.months,
+      recruitStartDate: schedule.recruitStartDate.split('T')[0],
+      recruitEndDate: schedule.recruitEndDate.split('T')[0],
+      studyEndDate: schedule.studyEndDate.split('T')[0],
+    });
+  };
+
+  const formatDate = (dateStr: string) => {
+    try {
+      return format(new Date(dateStr), 'yyyy-MM-dd');
+    } catch {
+      return dateStr;
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-lg font-semibold">스터디 일정(차수) 관리</h2>
-        <Button onClick={() => setIsCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          일정 추가
-        </Button>
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <Select
+            value={selectedTrackFilter.toString()}
+            onValueChange={(value) => setSelectedTrackFilter(Number(value))}
+          >
+            <SelectTrigger className="w-[180px] h-9">
+              <SelectValue placeholder="트랙 선택" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">전체 트랙</SelectItem>
+              {tracks?.map((track) => (
+                <SelectItem key={track.trackId} value={track.trackId.toString()}>
+                  {track.trackName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={() => { resetForm(); setIsCreateOpen(true); }}>
+            <Plus className="h-4 w-4 mr-2" />
+            일정 추가
+          </Button>
+        </div>
       </div>
 
-      <Card>
-        <CardContent className="p-6">
-          <div className="text-center text-muted-foreground py-8">
-            <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-            <p>스터디 일정 관리 기능</p>
-            <p className="text-sm mt-1">각 트랙별 스터디 모집 일정을 관리할 수 있습니다.</p>
-          </div>
-        </CardContent>
-      </Card>
+      {isLoading ? (
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <Skeleton key={i} className="h-24" />
+          ))}
+        </div>
+      ) : allSchedules.length === 0 ? (
+        <EmptyState
+          icon={Calendar}
+          title="등록된 일정이 없습니다"
+          description="새로운 스터디 일정을 추가해주세요."
+        />
+      ) : (
+        <div className="space-y-3">
+          {allSchedules.map((schedule) => (
+            <Card key={schedule.id}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="outline">{schedule.trackName || `트랙 ${schedule.trackId}`}</Badge>
+                      <span className="font-semibold">{MONTH_LABELS[schedule.months] || schedule.monthName || schedule.months}</span>
+                    </div>
+                    <div className="text-sm text-muted-foreground space-y-0.5">
+                      <p>모집: {formatDate(schedule.recruitStartDate)} ~ {formatDate(schedule.recruitEndDate)}</p>
+                      <p>스터디 종료: {formatDate(schedule.studyEndDate)}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <Button variant="outline" size="sm" onClick={() => openEditDialog(schedule)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => setDeleteTarget(schedule)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Create Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -1041,70 +1146,130 @@ function ScheduleManagementTab() {
             <DialogTitle>스터디 일정 추가</DialogTitle>
             <DialogDescription>새로운 스터디 일정을 생성합니다.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="trackSelect">트랙 선택</Label>
-              <select
-                id="trackSelect"
-                className="w-full h-10 px-3 border rounded-md bg-background"
-                value={formData.trackId}
-                onChange={(e) => setFormData({ ...formData, trackId: Number(e.target.value) })}
-              >
-                <option value={0}>트랙을 선택하세요</option>
-                {tracks?.map((track) => (
-                  <option key={track.trackId} value={track.trackId}>
-                    {track.trackName}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="month">차수 (월)</Label>
-              <Input
-                id="month"
-                value={formData.month}
-                onChange={(e) => setFormData({ ...formData, month: e.target.value })}
-                placeholder="예: 1, 2, 3..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="recruitStartDate">모집 시작일</Label>
-              <Input
-                id="recruitStartDate"
-                type="date"
-                value={formData.recruitStartDate}
-                onChange={(e) => setFormData({ ...formData, recruitStartDate: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="recruitEndDate">모집 종료일</Label>
-              <Input
-                id="recruitEndDate"
-                type="date"
-                value={formData.recruitEndDate}
-                onChange={(e) => setFormData({ ...formData, recruitEndDate: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="studyEndDate">스터디 종료일</Label>
-              <Input
-                id="studyEndDate"
-                type="date"
-                value={formData.studyEndDate}
-                onChange={(e) => setFormData({ ...formData, studyEndDate: e.target.value })}
-              />
-            </div>
-          </div>
+          <ScheduleForm formData={formData} setFormData={setFormData} tracks={tracks} />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
-              취소
-            </Button>
+            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>취소</Button>
             <Button onClick={handleCreate} disabled={createMutation.isPending}>
               {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : '생성'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingSchedule} onOpenChange={(open) => !open && setEditingSchedule(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>스터디 일정 수정</DialogTitle>
+            <DialogDescription>스터디 일정 정보를 수정합니다.</DialogDescription>
+          </DialogHeader>
+          <ScheduleForm formData={formData} setFormData={setFormData} tracks={tracks} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingSchedule(null)}>취소</Button>
+            <Button onClick={handleUpdate} disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : '저장'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>일정 삭제</AlertDialogTitle>
+            <AlertDialogDescription>
+              이 스터디 일정을 삭제하시겠습니까?
+              <span className="block mt-2 text-destructive">
+                참조하는 스터디가 있으면 삭제할 수 없습니다.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : '삭제'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function ScheduleForm({
+  formData,
+  setFormData,
+  tracks,
+}: {
+  formData: ScheduleCreateRequest;
+  setFormData: (data: ScheduleCreateRequest) => void;
+  tracks?: AdminTrack[];
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>트랙 선택</Label>
+        <Select
+          value={formData.trackId ? formData.trackId.toString() : ''}
+          onValueChange={(value) => setFormData({ ...formData, trackId: Number(value) })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="트랙을 선택하세요" />
+          </SelectTrigger>
+          <SelectContent>
+            {tracks?.map((track) => (
+              <SelectItem key={track.trackId} value={track.trackId.toString()}>
+                {track.trackName}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>차수</Label>
+        <Select value={formData.month} onValueChange={(value) => setFormData({ ...formData, month: value })}>
+          <SelectTrigger>
+            <SelectValue placeholder="차수 선택" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="FIRST">1차</SelectItem>
+            <SelectItem value="SECOND">2차</SelectItem>
+            <SelectItem value="THIRD">3차</SelectItem>
+            <SelectItem value="FOURTH">4차</SelectItem>
+            <SelectItem value="FIFTH">5차</SelectItem>
+            <SelectItem value="SIXTH">6차</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>모집 시작일</Label>
+        <Input
+          type="date"
+          value={formData.recruitStartDate}
+          onChange={(e) => setFormData({ ...formData, recruitStartDate: e.target.value })}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label>모집 종료일</Label>
+        <Input
+          type="date"
+          value={formData.recruitEndDate}
+          onChange={(e) => setFormData({ ...formData, recruitEndDate: e.target.value })}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label>스터디 종료일</Label>
+        <Input
+          type="date"
+          value={formData.studyEndDate}
+          onChange={(e) => setFormData({ ...formData, studyEndDate: e.target.value })}
+        />
+      </div>
     </div>
   );
 }
@@ -1159,7 +1324,7 @@ function UserCard({
               {user.phoneNumber && (
                 <div className="flex items-center gap-1.5">
                   <Phone className="h-3.5 w-3.5" />
-                  <p className="truncate">{user.phoneNumber}</p>
+                  <p className="truncate">{user.phoneNumber.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3')}</p>
                 </div>
               )}
             </div>

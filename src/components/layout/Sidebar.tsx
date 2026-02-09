@@ -7,7 +7,7 @@ import { UserAvatar } from '@/components/ui/UserAvatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Users, Flame, Hash, FileText, Shield } from 'lucide-react';
+import { Users, Flame, Hash, FileText } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi } from '@/lib/api';
 
@@ -40,7 +40,7 @@ export function Sidebar() {
                   <UserAvatar
                     src={user.profileImageUrl}
                     name={user.name}
-                    className="h-16 w-16 border-4 border-card shadow-lg"
+                    className="h-28 w-28 border-4 border-card shadow-lg"
                   />
                   <h3 className="mt-3 font-semibold text-lg">{user.name}</h3>
                   <p className="text-sm text-muted-foreground">{user.trackName}</p>
@@ -69,19 +69,6 @@ export function Sidebar() {
               </CardContent>
             </Card>
 
-            {/* Admin Link */}
-            {user.role === 'ADMIN' && (
-              <Card className="border-primary/20 bg-primary/5">
-                <CardContent className="p-3">
-                  <Button variant="outline" className="w-full gap-2 border-primary/20 hover:bg-primary/10 hover:text-primary bg-background" asChild>
-                    <Link href="/admin">
-                      <Shield className="h-4 w-4 text-primary" />
-                      관리자 페이지
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
           </>
         ) : (
           <Card>
@@ -156,7 +143,7 @@ export function Sidebar() {
 
         {/* Footer */}
         <div className="text-xs text-muted-foreground text-center space-y-1 pt-2">
-          <p>© 2025 Depth</p>
+          <p>© 2025 POTENUP</p>
           <div className="flex justify-center gap-3">
             <Link href="/terms" className="hover:text-foreground transition-colors">이용약관</Link>
             <Link href="/privacy" className="hover:text-foreground transition-colors">개인정보처리방침</Link>
