@@ -1,17 +1,33 @@
-'use client';
+"use client";
 
-import { useRouter } from 'next/navigation';
-import { Bell, Check, MessageCircle, Heart, Megaphone, CheckCheck } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
-import { ko } from 'date-fns/locale';
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, NotificationsResponse, mapNotificationResponse, Notification } from '@/lib/api';
-import { toast } from 'sonner';
+import { useRouter } from "next/navigation";
+import {
+  Bell,
+  Check,
+  MessageCircle,
+  Heart,
+  Megaphone,
+  CheckCheck,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
+import { formatDistanceToNow } from "date-fns";
+import { ko } from "date-fns/locale";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  api,
+  NotificationsResponse,
+  mapNotificationResponse,
+  Notification,
+} from "@/lib/api";
+import { toast } from "sonner";
 
 const NOTIFICATION_ICONS: Record<string, React.ElementType> = {
   COMMENT: MessageCircle,
@@ -31,9 +47,9 @@ export function NotificationSheet({ trigger }: NotificationSheetProps) {
 
   // 알림 목록 조회
   const { data, isLoading } = useQuery({
-    queryKey: ['notifications'],
+    queryKey: ["notifications"],
     queryFn: async () => {
-      const res = await api.get<NotificationsResponse>('/notifications');
+      const res = await api.get<NotificationsResponse>("/notifications");
       return res.notifications.map(mapNotificationResponse);
     },
     enabled: open,
@@ -47,22 +63,26 @@ export function NotificationSheet({ trigger }: NotificationSheetProps) {
       await api.patch(`/notifications/${id}/read`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({
+        queryKey: ["notifications", "unread-count"],
+      });
     },
-    onError: () => toast.error('알림 읽음 처리에 실패했습니다.'),
+    onError: () => toast.error("알림 읽음 처리에 실패했습니다."),
   });
 
   // 전체 읽음 처리
   const markAllAsReadMutation = useMutation({
     mutationFn: async () => {
-      await api.patch('/notifications/read-all');
+      await api.patch("/notifications/read-all");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({
+        queryKey: ["notifications", "unread-count"],
+      });
     },
-    onError: () => toast.error('전체 읽음 처리에 실패했습니다.'),
+    onError: () => toast.error("전체 읽음 처리에 실패했습니다."),
   });
 
   const handleMarkAsRead = (id: number, e: React.MouseEvent) => {
@@ -80,17 +100,19 @@ export function NotificationSheet({ trigger }: NotificationSheetProps) {
     }
     setOpen(false);
     if (notification.relatedId) {
-      router.push(`/post/${notification.relatedId}`);
+      const path =
+        notification.referenceType === "STUDY"
+          ? `/studies/${notification.relatedId}`
+          : `/post/${notification.relatedId}`;
+      router.push(path);
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        {trigger}
-      </PopoverTrigger>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         align="start"
         sideOffset={8}
@@ -162,7 +184,7 @@ export function NotificationSheet({ trigger }: NotificationSheetProps) {
               className="w-full text-xs text-muted-foreground hover:text-foreground"
               onClick={() => {
                 setOpen(false);
-                router.push('/notifications');
+                router.push("/notifications");
               }}
             >
               모든 알림 보기
@@ -192,26 +214,31 @@ function NotificationItem({
   return (
     <div
       className={cn(
-        'flex items-start gap-3 p-3 cursor-pointer transition-colors hover:bg-muted/50',
-        !notification.isRead && 'bg-primary/5'
+        "flex items-start gap-3 p-3 cursor-pointer transition-colors hover:bg-muted/50",
+        !notification.isRead && "bg-primary/5",
       )}
       onClick={onClick}
     >
       <div
         className={cn(
-          'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center',
-          notification.type === 'LIKE' && 'bg-rose-100 text-rose-500',
-          notification.type === 'COMMENT' && 'bg-blue-100 text-blue-500',
-          notification.type === 'REPLY' && 'bg-blue-100 text-blue-500',
-          notification.type === 'NOTICE' && 'bg-amber-100 text-amber-600',
-          !['LIKE', 'COMMENT', 'REPLY', 'NOTICE'].includes(notification.type) &&
-            'bg-muted text-muted-foreground'
+          "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
+          notification.type === "LIKE" && "bg-rose-100 text-rose-500",
+          notification.type === "COMMENT" && "bg-blue-100 text-blue-500",
+          notification.type === "REPLY" && "bg-blue-100 text-blue-500",
+          notification.type === "NOTICE" && "bg-amber-100 text-amber-600",
+          !["LIKE", "COMMENT", "REPLY", "NOTICE"].includes(notification.type) &&
+            "bg-muted text-muted-foreground",
         )}
       >
         <Icon className="h-4 w-4" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className={cn('text-sm leading-snug', !notification.isRead && 'font-medium')}>
+        <p
+          className={cn(
+            "text-sm leading-snug",
+            !notification.isRead && "font-medium",
+          )}
+        >
           {notification.message}
         </p>
         <p className="text-xs text-muted-foreground mt-1">{timeAgo}</p>

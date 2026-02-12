@@ -1,16 +1,28 @@
-'use client';
+"use client";
 
-import { useRouter } from 'next/navigation';
-import { Bell, Check, MessageCircle, Heart, Megaphone, CheckCheck } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
-import { ko } from 'date-fns/locale';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, NotificationsResponse, mapNotificationResponse, Notification } from '@/lib/api';
-import { toast } from 'sonner';
+import { useRouter } from "next/navigation";
+import {
+  Bell,
+  Check,
+  MessageCircle,
+  Heart,
+  Megaphone,
+  CheckCheck,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import { formatDistanceToNow } from "date-fns";
+import { ko } from "date-fns/locale";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  api,
+  NotificationsResponse,
+  mapNotificationResponse,
+  Notification,
+} from "@/lib/api";
+import { toast } from "sonner";
 
 const NOTIFICATION_ICONS: Record<string, React.ElementType> = {
   COMMENT: MessageCircle,
@@ -25,9 +37,9 @@ export default function Notifications() {
 
   // 알림 목록 조회
   const { data, isLoading } = useQuery({
-    queryKey: ['notifications'],
+    queryKey: ["notifications"],
     queryFn: async () => {
-      const res = await api.get<NotificationsResponse>('/notifications');
+      const res = await api.get<NotificationsResponse>("/notifications");
       return res.notifications.map(mapNotificationResponse);
     },
     staleTime: 0,
@@ -41,22 +53,26 @@ export default function Notifications() {
       await api.patch(`/notifications/${id}/read`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({
+        queryKey: ["notifications", "unread-count"],
+      });
     },
-    onError: () => toast.error('알림 읽음 처리에 실패했습니다.'),
+    onError: () => toast.error("알림 읽음 처리에 실패했습니다."),
   });
 
   // 전체 읽음 처리
   const markAllAsReadMutation = useMutation({
     mutationFn: async () => {
-      await api.patch('/notifications/read-all');
+      await api.patch("/notifications/read-all");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({
+        queryKey: ["notifications", "unread-count"],
+      });
     },
-    onError: () => toast.error('전체 읽음 처리에 실패했습니다.'),
+    onError: () => toast.error("전체 읽음 처리에 실패했습니다."),
   });
 
   const handleMarkAsRead = (id: number) => {
@@ -72,11 +88,15 @@ export default function Notifications() {
       markAsReadMutation.mutate(notification.id);
     }
     if (notification.relatedId) {
-      router.push(`/post/${notification.relatedId}`);
+      const path =
+        notification.referenceType === "STUDY"
+          ? `/studies/${notification.relatedId}`
+          : `/post/${notification.relatedId}`;
+      router.push(path);
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   if (isLoading) {
     return <NotificationsSkeleton />;
@@ -97,7 +117,12 @@ export default function Notifications() {
               )}
             </div>
             {unreadCount > 0 && (
-              <Button variant="ghost" size="sm" onClick={handleMarkAllAsRead} className="gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleMarkAllAsRead}
+                className="gap-2"
+              >
                 <CheckCheck className="h-4 w-4" />
                 모두 읽음
               </Button>
@@ -149,26 +174,26 @@ function NotificationItem({
   return (
     <div
       className={cn(
-        'flex items-start gap-4 p-4 cursor-pointer transition-colors hover:bg-muted/50',
-        !notification.isRead && 'bg-primary/5'
+        "flex items-start gap-4 p-4 cursor-pointer transition-colors hover:bg-muted/50",
+        !notification.isRead && "bg-primary/5",
       )}
       onClick={onClick}
     >
       <div
         className={cn(
-          'flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center',
-          notification.type === 'LIKE' && 'bg-rose-100 text-rose-500',
-          notification.type === 'COMMENT' && 'bg-blue-100 text-blue-500',
-          notification.type === 'REPLY' && 'bg-blue-100 text-blue-500',
-          notification.type === 'NOTICE' && 'bg-amber-100 text-amber-600',
-          !['LIKE', 'COMMENT', 'REPLY', 'NOTICE'].includes(notification.type) &&
-            'bg-muted text-muted-foreground'
+          "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center",
+          notification.type === "LIKE" && "bg-rose-100 text-rose-500",
+          notification.type === "COMMENT" && "bg-blue-100 text-blue-500",
+          notification.type === "REPLY" && "bg-blue-100 text-blue-500",
+          notification.type === "NOTICE" && "bg-amber-100 text-amber-600",
+          !["LIKE", "COMMENT", "REPLY", "NOTICE"].includes(notification.type) &&
+            "bg-muted text-muted-foreground",
         )}
       >
         <Icon className="h-5 w-5" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className={cn('text-sm', !notification.isRead && 'font-medium')}>
+        <p className={cn("text-sm", !notification.isRead && "font-medium")}>
           {notification.message}
         </p>
         <p className="text-xs text-muted-foreground mt-1">{timeAgo}</p>
@@ -199,7 +224,10 @@ function NotificationsSkeleton() {
         </CardHeader>
         <CardContent className="p-0">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="flex items-start gap-4 p-4 border-b last:border-b-0">
+            <div
+              key={i}
+              className="flex items-start gap-4 p-4 border-b last:border-b-0"
+            >
               <Skeleton className="h-10 w-10 rounded-full" />
               <div className="flex-1">
                 <Skeleton className="h-4 w-3/4 mb-2" />

@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   ArrowLeft,
   Users,
@@ -16,12 +16,12 @@ import {
   Pencil,
   Trash2,
   Send,
-} from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { UserAvatar } from '@/components/ui/UserAvatar';
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,41 +31,44 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { useAuth } from '@/contexts/AuthContext';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { studyApi, StudyDetail } from '@/lib/api';
-import { BUDGET_LABELS, STUDY_STATUS_LABELS } from '@/lib/constants';
-import { toast } from 'sonner';
-import { formatDistanceToNow, format } from 'date-fns';
-import { ko } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/alert-dialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { studyApi, StudyDetail } from "@/lib/api";
+import { BUDGET_LABELS, STUDY_STATUS_LABELS } from "@/lib/constants";
+import { toast } from "sonner";
+import { formatDistanceToNow, format } from "date-fns";
+import { ko } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 export default function StudyDetailPage() {
   const params = useParams();
   const router = useRouter();
   const studyId = Number(params.studyId);
 
-  const { data: study, isLoading, error } = useQuery({
-    queryKey: ['study', studyId],
+  const {
+    data: study,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["study", studyId],
     queryFn: () => studyApi.getStudy(studyId),
     enabled: !!studyId,
     staleTime: 0,
   });
+
+  useEffect(() => {
+    if (!isLoading && (error || !study)) {
+      router.replace("/studies");
+    }
+  }, [isLoading, error, study, router]);
 
   if (isLoading) {
     return <StudyDetailSkeleton />;
   }
 
   if (error || !study) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16">
-        <Users className="h-16 w-16 text-muted-foreground mb-4" />
-        <h2 className="text-xl font-semibold mb-2">스터디를 찾을 수 없습니다</h2>
-        <p className="text-muted-foreground mb-4">요청하신 스터디가 존재하지 않거나 삭제되었습니다.</p>
-        <Button onClick={() => router.push('/studies')}>스터디 목록으로</Button>
-      </div>
-    );
+    return null;
   }
 
   return <StudyDetailContent study={study} />;
@@ -78,19 +81,23 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   const isFull = study.currentMemberCount >= study.capacity;
-  const canApply = !study.isLeader && !study.isParticipant && !study.isRecruitmentClosed && !isFull && study.status === 'PENDING';
-
+  const canApply =
+    !study.isLeader &&
+    !study.isParticipant &&
+    !study.isRecruitmentClosed &&
+    !isFull &&
+    study.status === "PENDING";
 
   // 스터디 참가
   const joinMutation = useMutation({
     mutationFn: () => studyApi.joinStudy(study.id),
     onSuccess: () => {
-      toast.success('스터디에 참가되었습니다!');
-      queryClient.invalidateQueries({ queryKey: ['study', study.id] });
-      queryClient.invalidateQueries({ queryKey: ['my-recruitments'] });
+      toast.success("스터디에 참가되었습니다!");
+      queryClient.invalidateQueries({ queryKey: ["study", study.id] });
+      queryClient.invalidateQueries({ queryKey: ["my-recruitments"] });
     },
     onError: () => {
-      toast.error('스터디 참가에 실패했습니다.');
+      toast.error("스터디 참가에 실패했습니다.");
     },
   });
 
@@ -98,19 +105,19 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
   const deleteMutation = useMutation({
     mutationFn: () => studyApi.deleteStudy(study.id),
     onSuccess: () => {
-      toast.success('스터디가 삭제되었습니다.');
-      router.push('/studies');
+      toast.success("스터디가 삭제되었습니다.");
+      router.push("/studies");
     },
     onError: () => {
-      toast.error('스터디 삭제에 실패했습니다.');
+      toast.error("스터디 삭제에 실패했습니다.");
     },
   });
 
   const getStatusBadge = () => {
-    if (study.status === 'REJECTED') {
+    if (study.status === "REJECTED") {
       return <Badge variant="destructive">거절됨</Badge>;
     }
-    if (study.status === 'APPROVED') {
+    if (study.status === "APPROVED") {
       return <Badge className="bg-blue-500 text-white">승인 완료</Badge>;
     }
     if (study.isRecruitmentClosed || isFull) {
@@ -132,7 +139,11 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
             {getStatusBadge()}
           </div>
           <p className="text-muted-foreground">
-            {formatDistanceToNow(new Date(study.createdAt), { addSuffix: true, locale: ko })} 개설
+            {formatDistanceToNow(new Date(study.createdAt), {
+              addSuffix: true,
+              locale: ko,
+            })}{" "}
+            개설
           </p>
         </div>
         {study.isLeader && (
@@ -196,16 +207,23 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
               <CardContent>
                 <div className="space-y-3">
                   {study.participants.map((participant) => (
-                    <div key={participant.id} className="flex items-center gap-3">
+                    <div
+                      key={participant.id}
+                      className="flex items-center gap-3"
+                    >
                       <UserAvatar
                         src={participant.profileImageUrl}
                         name={participant.name}
                         className="h-9 w-9"
                       />
                       <div>
-                        <p className="font-medium text-sm">{participant.name}</p>
+                        <p className="font-medium text-sm">
+                          {participant.name}
+                        </p>
                         {participant.trackName && (
-                          <p className="text-xs text-muted-foreground">{participant.trackName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {participant.trackName}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -214,7 +232,6 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
               </CardContent>
             </Card>
           )}
-
         </div>
 
         {/* Sidebar */}
@@ -228,13 +245,15 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
               <div className="flex items-center gap-3">
                 <UserAvatar
                   src={study.leader?.profileImageUrl}
-                  name={study.leader?.name || ''}
+                  name={study.leader?.name || ""}
                   className="h-12 w-12"
                 />
                 <div>
                   <p className="font-medium">{study.leader?.name}</p>
                   {study.leader?.trackName && (
-                    <p className="text-sm text-muted-foreground">{study.leader.trackName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {study.leader.trackName}
+                    </p>
                   )}
                 </div>
               </div>
@@ -256,7 +275,8 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">지원 항목</span>
                 <Badge variant="outline">
-                  {BUDGET_LABELS[study.budget as keyof typeof BUDGET_LABELS] || study.budget}
+                  {BUDGET_LABELS[study.budget as keyof typeof BUDGET_LABELS] ||
+                    study.budget}
                 </Badge>
               </div>
               {study.scheduleName && (
@@ -276,8 +296,16 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
               </CardHeader>
               <CardContent className="space-y-2">
                 {study.chatUrl && (
-                  <Button variant="outline" className="w-full justify-start" asChild>
-                    <a href={study.chatUrl} target="_blank" rel="noopener noreferrer">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    asChild
+                  >
+                    <a
+                      href={study.chatUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
                       <MessageCircle className="h-4 w-4 mr-2" />
                       오픈 채팅방
                       <ExternalLink className="h-3 w-3 ml-auto" />
@@ -285,8 +313,16 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
                   </Button>
                 )}
                 {study.refUrl && (
-                  <Button variant="outline" className="w-full justify-start" asChild>
-                    <a href={study.refUrl} target="_blank" rel="noopener noreferrer">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    asChild
+                  >
+                    <a
+                      href={study.refUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
                       <ExternalLink className="h-4 w-4 mr-2" />
                       참고 자료
                       <ExternalLink className="h-3 w-3 ml-auto" />
@@ -326,11 +362,14 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
             </div>
           )}
 
-          {!canApply && !study.isLeader && !study.isParticipant && study.status === 'PENDING' && (
-            <div className="text-center text-sm text-muted-foreground py-2">
-              {isFull ? '모집이 마감되었습니다' : '현재 신청할 수 없습니다'}
-            </div>
-          )}
+          {!canApply &&
+            !study.isLeader &&
+            !study.isParticipant &&
+            study.status === "PENDING" && (
+              <div className="text-center text-sm text-muted-foreground py-2">
+                {isFull ? "모집이 마감되었습니다" : "현재 신청할 수 없습니다"}
+              </div>
+            )}
         </div>
       </div>
 
@@ -353,7 +392,11 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
               onClick={() => deleteMutation.mutate()}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : '삭제'}
+              {deleteMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "삭제"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

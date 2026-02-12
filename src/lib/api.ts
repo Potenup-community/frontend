@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './constants';
+import { API_BASE_URL } from "./constants";
 
 // API client with credentials included for cookie-based auth
 class ApiClient {
@@ -10,16 +10,16 @@ class ApiClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     const config: RequestInit = {
       ...options,
-      cache: 'no-store', // Prevent caching
-      credentials: 'include', // Required for cookie-based auth
+      cache: "no-store", // Prevent caching
+      credentials: "include", // Required for cookie-based auth
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...options.headers,
       },
     };
@@ -29,31 +29,37 @@ class ApiClient {
     // Handle 401 - redirect to login (except for auth check endpoints)
     if (response.status === 401) {
       // Don't redirect for auth check endpoints or if on signin/signup page
-      const isAuthCheckEndpoint = endpoint === '/auth/me' || endpoint === '/auth/login';
-      const isPublicEndpoint = endpoint === '/admin/tracks'; // 트랙 조회는 회원가입에 필요
-      const isAuthPage = typeof window !== 'undefined' &&
-        (window.location.pathname === '/signin' || window.location.pathname === '/signup');
+      const isAuthCheckEndpoint =
+        endpoint === "/auth/me" || endpoint === "/auth/login";
+      const isPublicEndpoint = endpoint === "/admin/tracks"; // 트랙 조회는 회원가입에 필요
+      const isAuthPage =
+        typeof window !== "undefined" &&
+        (window.location.pathname === "/signin" ||
+          window.location.pathname === "/signup");
 
       if (!isAuthCheckEndpoint && !isPublicEndpoint && !isAuthPage) {
-        window.location.href = '/signin';
+        window.location.href = "/signin";
       }
-      throw new Error('Unauthorized');
+      throw new Error("Unauthorized");
     }
 
     // Handle 404 on login - user not registered
-    if (response.status === 404 && endpoint === '/auth/login') {
-      throw new ApiError('USER_NOT_FOUND', 404, '미가입 유저입니다.');
+    if (response.status === 404 && endpoint === "/auth/login") {
+      throw new ApiError("USER_NOT_FOUND", 404, "미가입 유저입니다.");
     }
 
     // Handle other errors
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error(`[API Error] ${options.method || 'GET'} ${endpoint} → ${response.status}`, errorData);
+      console.error(
+        `[API Error] ${options.method || "GET"} ${endpoint} → ${response.status}`,
+        errorData,
+      );
       throw new ApiError(
-        errorData.code || 'UNKNOWN_ERROR',
+        errorData.code || "UNKNOWN_ERROR",
         response.status,
-        errorData.message || '오류가 발생했습니다.',
-        errorData.errors
+        errorData.message || "오류가 발생했습니다.",
+        errorData.errors,
       );
     }
 
@@ -62,8 +68,8 @@ class ApiClient {
       return {} as T;
     }
 
-    const contentType = response.headers.get('Content-Type');
-    if (!contentType || !contentType.includes('application/json')) {
+    const contentType = response.headers.get("Content-Type");
+    if (!contentType || !contentType.includes("application/json")) {
       return {} as T;
     }
 
@@ -71,7 +77,10 @@ class ApiClient {
     return text ? JSON.parse(text) : ({} as T);
   }
 
-  get<T>(endpoint: string, params?: Record<string, string | number | boolean | undefined>) {
+  get<T>(
+    endpoint: string,
+    params?: Record<string, string | number | boolean | undefined>,
+  ) {
     let url = endpoint;
     if (params) {
       const searchParams = new URLSearchParams();
@@ -85,33 +94,33 @@ class ApiClient {
         url += `?${queryString}`;
       }
     }
-    return this.request<T>(url, { method: 'GET' });
+    return this.request<T>(url, { method: "GET" });
   }
 
   post<T>(endpoint: string, data?: unknown) {
     return this.request<T>(endpoint, {
-      method: 'POST',
+      method: "POST",
       body: data ? JSON.stringify(data) : undefined,
     });
   }
 
   put<T>(endpoint: string, data?: unknown) {
     return this.request<T>(endpoint, {
-      method: 'PUT',
+      method: "PUT",
       body: data ? JSON.stringify(data) : undefined,
     });
   }
 
   patch<T>(endpoint: string, data?: unknown) {
     return this.request<T>(endpoint, {
-      method: 'PATCH',
+      method: "PATCH",
       body: data ? JSON.stringify(data) : undefined,
     });
   }
 
   delete<T>(endpoint: string, data?: unknown) {
     return this.request<T>(endpoint, {
-      method: 'DELETE',
+      method: "DELETE",
       body: data ? JSON.stringify(data) : undefined,
     });
   }
@@ -121,27 +130,28 @@ class ApiClient {
     const url = `${this.baseUrl}${endpoint}`;
 
     const response = await fetch(url, {
-      method: 'POST',
-      credentials: 'include',
+      method: "POST",
+      credentials: "include",
       body: formData,
     });
 
     // Handle 401 - redirect to login
     if (response.status === 401) {
-      const isSigninPage = typeof window !== 'undefined' && window.location.pathname === '/signin';
+      const isSigninPage =
+        typeof window !== "undefined" && window.location.pathname === "/signin";
       if (!isSigninPage) {
-        window.location.href = '/signin';
+        window.location.href = "/signin";
       }
-      throw new Error('Unauthorized');
+      throw new Error("Unauthorized");
     }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new ApiError(
-        errorData.code || 'UPLOAD_ERROR',
+        errorData.code || "UPLOAD_ERROR",
         response.status,
-        errorData.message || '업로드에 실패했습니다.',
-        errorData.errors
+        errorData.message || "업로드에 실패했습니다.",
+        errorData.errors,
       );
     }
 
@@ -159,7 +169,7 @@ class ApiClient {
     try {
       return JSON.parse(text) as T;
     } catch {
-      console.error('Failed to parse upload response:', text);
+      console.error("Failed to parse upload response:", text);
       return {} as T;
     }
   }
@@ -175,10 +185,10 @@ export class ApiError extends Error {
     code: string,
     status: number,
     message: string,
-    errors?: Array<{ field: string; reason: string }>
+    errors?: Array<{ field: string; reason: string }>,
   ) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
     this.code = code;
     this.status = status;
     this.errors = errors;
@@ -192,7 +202,7 @@ export interface User {
   id: number;
   name: string;
   email: string;
-  role: 'USER' | 'ADMIN';
+  role: "USER" | "ADMIN";
   trackId?: number;
   trackName?: string;
   profileImageUrl?: string;
@@ -325,27 +335,37 @@ export interface ProfileInfo {
 export const postApi = {
   // 게시글 목록 조회
   getSummary: (params?: { page?: number; size?: number; topic?: string }) =>
-    api.get<{ contents: any[]; hasNext: boolean; nextPage: number }>('/posts/summary', params),
+    api.get<{ contents: any[]; hasNext: boolean; nextPage: number }>(
+      "/posts/summary",
+      params,
+    ),
 
   // 게시글 상세 조회
   getPost: (id: number) => api.get<any>(`/posts/${id}`),
 
   // 게시글 생성
-  createPost: (data: PostCreateRequest) => api.post<void>('/posts', data),
+  createPost: (data: PostCreateRequest) => api.post<void>("/posts", data),
 
   // 게시글 수정
-  updatePost: (id: number, data: PostUpdateRequest) => api.patch<void>(`/posts/${id}`, data),
+  updatePost: (id: number, data: PostUpdateRequest) =>
+    api.patch<void>(`/posts/${id}`, data),
 
   // 게시글 삭제
   deletePost: (id: number) => api.delete<void>(`/posts/${id}`),
 
   // 내 게시글 목록
   getMyPosts: (params?: { page?: number; size?: number }) =>
-    api.get<{ contents: any[]; hasNext: boolean; nextPage: number }>('/posts/me', params),
+    api.get<{ contents: any[]; hasNext: boolean; nextPage: number }>(
+      "/posts/me",
+      params,
+    ),
 
   // 내가 좋아요한 게시글
   getMyLikedPosts: (params?: { page?: number; size?: number }) =>
-    api.get<{ contents: any[]; hasNext: boolean; nextPage: number }>('/posts/posts/me/liked', params),
+    api.get<{ contents: any[]; hasNext: boolean; nextPage: number }>(
+      "/posts/posts/me/liked",
+      params,
+    ),
 };
 
 // ==================== Comment API Functions ====================
@@ -355,71 +375,89 @@ export const commentApi = {
   getComments: (postId: number) => api.get<any>(`/comments/${postId}`),
 
   // 댓글 작성
-  createComment: (data: CommentCreateRequest) => api.post<void>('/comments', data),
+  createComment: (data: CommentCreateRequest) =>
+    api.post<void>("/comments", data),
 
   // 댓글 수정
   updateComment: (commentId: number, data: CommentUpdateRequest) =>
     api.put<void>(`/comments/${commentId}`, data),
 
   // 댓글 삭제
-  deleteComment: (commentId: number) => api.delete<void>(`/comments/${commentId}`),
+  deleteComment: (commentId: number) =>
+    api.delete<void>(`/comments/${commentId}`),
 
   // 내 댓글 목록
   getMyComments: (params?: { page?: number; size?: number }) =>
-    api.get<{ contents: any[]; hasNext: boolean; nextPage: number }>('/comments/me', params),
+    api.get<{ contents: any[]; hasNext: boolean; nextPage: number }>(
+      "/comments/me",
+      params,
+    ),
 };
 
 // ==================== Reaction API Functions ====================
 
 export const reactionApi = {
   // 리액션 추가
-  addReaction: (data: { targetType: 'POST' | 'COMMENT'; targetId: number; reactionType: 'LIKE' }) =>
-    api.post<void>('/reactions', data),
+  addReaction: (data: {
+    targetType: "POST" | "COMMENT";
+    targetId: number;
+    reactionType: "LIKE";
+  }) => api.post<void>("/reactions", data),
 
   // 리액션 취소
-  removeReaction: (data: { targetType: 'POST' | 'COMMENT'; targetId: number; reactionType: 'LIKE' }) =>
-    api.delete<void>('/reactions', data),
+  removeReaction: (data: {
+    targetType: "POST" | "COMMENT";
+    targetId: number;
+    reactionType: "LIKE";
+  }) => api.delete<void>("/reactions", data),
 
   // 게시글 리액션 조회
-  getPostReaction: (postId: number) => api.get<any>(`/reactions/posts/${postId}`),
+  getPostReaction: (postId: number) =>
+    api.get<any>(`/reactions/posts/${postId}`),
 
   // 게시글 리액션 배치 조회
   getPostReactionsBatch: (postIds: number[]) =>
-    api.get<any>('/reactions/posts', { postIds } as any),
+    api.get<any>("/reactions/posts", { postIds } as any),
 
   // 댓글 리액션 배치 조회
   getCommentReactionsBatch: (commentIds: number[]) =>
-    api.get<any>('/reactions/comments', { commentIds } as any),
+    api.get<any>("/reactions/comments", { commentIds } as any),
 };
 
 // ==================== Dashboard API Functions ====================
 
 export const dashboardApi = {
-  getOverview: () => api.get<DashboardOverview>('/dashboard/overview'),
+  getOverview: () => api.get<DashboardOverview>("/dashboard/overview"),
 };
 
 // ==================== User/Profile API Functions ====================
 
 export const userApi = {
   // 내 정보 조회
-  getMyInfo: () => api.get<User>('/users/myInfo'),
+  getMyInfo: () => api.get<User>("/users/myInfo"),
 
   // 멘션용 유저 목록 조회
   getMentionUsers: (params?: { size?: number; cursorId?: number }) =>
-    api.get<UserSummary[]>('/users', params),
+    api.get<UserSummary[]>("/users", params),
 
   // 프로필 이미지 조회
-  getProfileImage: () => api.get<ProfileInfo>('/users/profiles/me'),
+  getProfileImage: () => api.get<ProfileInfo>("/users/profiles/me"),
 
   // 프로필 이미지 업로드
-  uploadProfileImage: (formData: FormData) => api.upload<void>('/users/profiles/me', formData),
+  uploadProfileImage: (formData: FormData) =>
+    api.upload<void>("/users/profiles/me", formData),
 
   // 프로필 이미지 삭제
-  deleteProfileImage: () => api.delete<void>('/users/profiles/me'),
+  deleteProfileImage: () => api.delete<void>("/users/profiles/me"),
 
   // 회원가입
-  signup: (data: { idToken: string; trackId: number; name: string; phoneNumber: string; provider: string }) =>
-    api.post<void>('/users/signup', data),
+  signup: (data: {
+    idToken: string;
+    trackId: number;
+    name: string;
+    phoneNumber: string;
+    provider: string;
+  }) => api.post<void>("/users/signup", data),
 };
 
 // ==================== Notification API Functions ====================
@@ -427,23 +465,27 @@ export const userApi = {
 export const notificationApi = {
   // 알림 목록 조회
   getNotifications: (params?: { page?: number; size?: number }) =>
-    api.get<NotificationsResponse>('/notifications', params),
+    api.get<NotificationsResponse>("/notifications", params),
 
   // 읽지 않은 알림 수
-  getUnreadCount: () => api.get<UnreadCountResponse>('/notifications/unread-count'),
+  getUnreadCount: () =>
+    api.get<UnreadCountResponse>("/notifications/unread-count"),
 
   // 개별 알림 읽음
   markAsRead: (id: number) => api.patch<void>(`/notifications/${id}/read`),
 
   // 전체 알림 읽음
-  markAllAsRead: () => api.patch<void>('/notifications/read-all'),
+  markAllAsRead: () => api.patch<void>("/notifications/read-all"),
 };
 
 // ==================== File API Functions ====================
 
 export const fileApi = {
   upload: (formData: FormData) =>
-    api.upload<{ url: string; relativePath?: string }>('/files/upload', formData),
+    api.upload<{ url: string; relativePath?: string }>(
+      "/files/upload",
+      formData,
+    ),
 };
 
 export interface Study {
@@ -484,6 +526,7 @@ export interface Notification {
   message: string;
   isRead: boolean;
   relatedId?: number;
+  referenceType?: "POST" | "STUDY";
   createdAt: string;
 }
 
@@ -503,9 +546,9 @@ export interface NotificationResponse {
   title: string;
   content: string;
   actorId?: number;
-  referenceType: 'POST' | 'STUDY';
+  referenceType: "POST" | "STUDY";
   referenceId: number;
-  status: 'READ' | 'UNREAD';
+  status: "READ" | "UNREAD";
   createdAt: string;
 }
 
@@ -521,35 +564,38 @@ export interface UnreadCountResponse {
 // 알림 타입 매핑 (백엔드 → 프론트엔드)
 export const mapNotificationType = (type: string): string => {
   switch (type) {
-    case 'POST_COMMENT':
-    case 'COMMENT_REPLY':
-    case 'COMMENT_MENTION':
-      return 'COMMENT';
-    case 'POST_REACTION':
-    case 'COMMENT_REACTION':
-      return 'LIKE';
-    case 'ANNOUNCEMENT':
-      return 'NOTICE';
+    case "POST_COMMENT":
+    case "COMMENT_REPLY":
+    case "COMMENT_MENTION":
+      return "COMMENT";
+    case "POST_REACTION":
+    case "COMMENT_REACTION":
+      return "LIKE";
+    case "ANNOUNCEMENT":
+      return "NOTICE";
     default:
       return type;
   }
 };
 
 // API 응답을 Notification 타입으로 변환
-export const mapNotificationResponse = (item: NotificationResponse): Notification => ({
+export const mapNotificationResponse = (
+  item: NotificationResponse,
+): Notification => ({
   id: item.id,
   type: mapNotificationType(item.type),
   message: item.content,
-  isRead: item.status === 'READ',
+  isRead: item.status === "READ",
   relatedId: item.referenceId,
+  referenceType: item.referenceType,
   createdAt: item.createdAt,
 });
 
 // ==================== Study Related Types ====================
 
-export type StudyStatus = 'PENDING' | 'APPROVED' | 'CLOSED' | 'REJECTED';
-export type BudgetType = 'BOOK' | 'MEAL';
-export type RecruitmentStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type StudyStatus = "PENDING" | "APPROVED" | "CLOSED" | "REJECTED";
+export type BudgetType = "BOOK" | "MEAL";
+export type RecruitmentStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 export interface StudyLeader {
   id: number;
@@ -629,7 +675,6 @@ export interface StudyUpdateRequest {
   tags?: string[];
 }
 
-
 export interface Recruitment {
   id: number;
   studyId: number;
@@ -696,17 +741,17 @@ export const studyApi = {
   getStudies: (params?: {
     trackId?: number;
     status?: StudyStatus;
-    sortType?: 'DESC' | 'ASC';
+    sortType?: "DESC" | "ASC";
     page?: number;
     size?: number;
-  }) => api.get<PaginatedResponse<Study>>('/studies', params),
+  }) => api.get<PaginatedResponse<Study>>("/studies", params),
 
   // 스터디 상세 조회
   getStudy: (studyId: number) => api.get<StudyDetail>(`/studies/${studyId}`),
 
   // 스터디 생성
   createStudy: (data: StudyCreateRequest) =>
-    api.post<{ studyId: number }>('/studies', data),
+    api.post<{ studyId: number }>("/studies", data),
 
   // 스터디 수정
   updateStudy: (studyId: number, data: StudyUpdateRequest) =>
@@ -729,7 +774,7 @@ export const studyApi = {
 
   // 내 스터디 신청 목록 조회
   getMyRecruitments: () =>
-    api.get<{ content: Recruitment[] }>('/users/me/recruitments'),
+    api.get<{ content: Recruitment[] }>("/users/me/recruitments"),
 
   // 스터디 승인 (관리자)
   approveStudy: (studyId: number) =>
@@ -760,20 +805,27 @@ export interface ScheduleQueryResponse {
 
 export const scheduleApi = {
   // 내 트랙 스터디 일정 조회
-  getMySchedules: () =>
-    api.get<MySchedule>('/studies/schedules/my/current'),
+  getMySchedules: () => api.get<MySchedule>("/studies/schedules/my/current"),
 
   // 관리자용 스터디 일정 조회 (trackIds 필터)
   getSchedules: (trackIds: number[]) =>
-    api.get<Record<string, ScheduleQueryResponse[]>>('/studies/schedules', { trackIds } as any),
+    api.get<Record<string, ScheduleQueryResponse[]>>("/studies/schedules", {
+      trackIds,
+    } as any),
 
   // 스터디 일정 생성
   createSchedule: (data: ScheduleCreateRequest) =>
-    api.post<{ id: number; trackId: number; months: string }>('/studies/schedules', data),
+    api.post<{ id: number; trackId: number; months: string }>(
+      "/studies/schedules",
+      data,
+    ),
 
   // 스터디 일정 수정
   updateSchedule: (id: number, data: ScheduleUpdateRequest) =>
-    api.patch<{ id: number; trackId: number; months: string }>(`/studies/schedules/${id}`, data),
+    api.patch<{ id: number; trackId: number; months: string }>(
+      `/studies/schedules/${id}`,
+      data,
+    ),
 
   // 스터디 일정 삭제
   deleteSchedule: (id: number) => api.delete<void>(`/studies/schedules/${id}`),
@@ -783,49 +835,66 @@ export const scheduleApi = {
 
 export const adminApi = {
   // 유저 목록 조회
-  getUsers: (params?: { status?: string; requestStatus?: string; trackId?: number; page?: number; size?: number }) =>
-    api.get<PaginatedResponse<{
-      userId: number;
-      name: string;
-      email: string;
-      phoneNumber?: string;
-      trackId: number;
-      trackName: string;
-      profileImageUrl?: string;
-      status: string;
-      createdAt: string;
-    }>>('/admin/users', params),
+  getUsers: (params?: {
+    status?: string;
+    requestStatus?: string;
+    trackId?: number;
+    page?: number;
+    size?: number;
+  }) =>
+    api.get<
+      PaginatedResponse<{
+        userId: number;
+        name: string;
+        email: string;
+        phoneNumber?: string;
+        trackId: number;
+        trackName: string;
+        profileImageUrl?: string;
+        status: string;
+        createdAt: string;
+      }>
+    >("/admin/users", params),
 
   // 유저 수 조회
   getUsersCount: (status?: string) =>
-    api.get<{ count: number }>('/admin/users/count', status ? { status } : undefined),
+    api.get<{ count: number }>(
+      "/admin/users/count",
+      status ? { status } : undefined,
+    ),
 
   // 유저 승인/거절 (단건)
-  decideUser: (userId: number, decision: 'ACCEPTED' | 'REJECTED', role?: string) =>
+  decideUser: (
+    userId: number,
+    decision: "ACCEPTED" | "REJECTED",
+    role?: string,
+  ) =>
     api.put<void>(`/admin/users/${userId}/decision`, {
       requestStatus: decision,
-      ...(decision === 'ACCEPTED' && { role: role || 'MEMBER' }),
+      ...(decision === "ACCEPTED" && { role: role || "MEMBER" }),
     }),
 
   // 유저 승인/거절 (다건)
-  decideUsers: (ids: number[], decision: 'ACCEPTED' | 'REJECTED', role?: string) =>
-    api.put<void>('/admin/users/decisions', {
+  decideUsers: (
+    ids: number[],
+    decision: "ACCEPTED" | "REJECTED",
+    role?: string,
+  ) =>
+    api.put<void>("/admin/users/decisions", {
       ids,
       requestStatus: decision,
-      ...(decision === 'ACCEPTED' && { role: role || 'MEMBER' }),
+      ...(decision === "ACCEPTED" && { role: role || "MEMBER" }),
     }),
 
   // 트랙 목록 조회 (회원가입용)
-  getTracks: () =>
-    api.get<{ content: AdminTrack[] }>('/admin/tracks'),
+  getTracks: () => api.get<{ content: AdminTrack[] }>("/admin/tracks"),
 
   // 전체 트랙 목록 조회 (Admin 전용)
-  getAllTracks: () =>
-    api.get<{ content: AdminTrack[] }>('/admin/tracks'),
+  getAllTracks: () => api.get<{ content: AdminTrack[] }>("/admin/tracks"),
 
   // 트랙 생성
   createTrack: (data: TrackCreateRequest) =>
-    api.post<{ trackId: number }>('/admin/tracks', data),
+    api.post<{ trackId: number }>("/admin/tracks", data),
 
   // 트랙 수정
   updateTrack: (id: number, data: TrackUpdateRequest) =>
@@ -836,5 +905,8 @@ export const adminApi = {
 
   // 스터디 목록 조회 (승인 대기)
   getPendingStudies: (params?: { page?: number; size?: number }) =>
-    api.get<PaginatedResponse<Study>>('/studies', { ...params, status: 'PENDING' }),
+    api.get<PaginatedResponse<Study>>("/studies", {
+      ...params,
+      status: "PENDING",
+    }),
 };
