@@ -8,6 +8,7 @@ build/
 .claude/
 # 환경 변수 (보안을 위해 절대 올리면 안 됨)
 .env*.local
+.env
 
 # 로그 파일
 npm-debug.log*
