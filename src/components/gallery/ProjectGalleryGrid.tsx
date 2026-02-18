@@ -9,20 +9,20 @@ interface ProjectGalleryGridProps {
 }
 
 export function ProjectGalleryGrid({
-  projects,
+  projects = [],
   isLoading = false,
 }: ProjectGalleryGridProps) {
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {Array.from({ length: 8 }).map((_, i) => (
-          <ProjectCardSkeleton key={i} />
+          <ProjectCardSkeleton key={`skeleton-${i}`} />
         ))}
       </div>
     );
   }
 
-  if (projects.length === 0) {
+  if (!projects || projects.length === 0) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="text-center">
@@ -40,7 +40,7 @@ export function ProjectGalleryGrid({
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {projects.map((project) => (
-        <ProjectCard key={project.id} {...project} />
+        <ProjectCard key={project.projectId} {...project} />
       ))}
     </div>
   );

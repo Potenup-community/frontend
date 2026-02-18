@@ -1,12 +1,12 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { AdminTrack } from "@/lib/api";
+import { ProjectTrackFilter } from "@/app/(main)/projects/page";
 
 interface ProjectFiltersProps {
-  activeFilter: string;
-  onFilterChange: (filter: string) => void;
-  tracks: AdminTrack[];
+  activeFilter: number | "all";
+  onFilterChange: (filter: number | "all") => void;
+  tracks: ProjectTrackFilter[];
 }
 
 export function ProjectFilters({
@@ -33,10 +33,10 @@ export function ProjectFilters({
       {tracks.map((track) => (
         <button
           key={track.trackId}
-          onClick={() => onFilterChange(track.trackId.toString())}
+          onClick={() => onFilterChange(track.trackId as number)}
           className={cn(
             "rounded-md px-4 py-2 text-sm font-medium transition-colors",
-            activeFilter === track.trackId.toString()
+            activeFilter === track.trackId
               ? "bg-gray-900 text-white"
               : "bg-gray-100 text-gray-700 hover:bg-gray-200",
           )}

@@ -1,52 +1,104 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
-import { ExternalLink, Github, Globe } from "lucide-react";
+import Link from "next/link";
+import { UserAvatar } from "@/components/ui/UserAvatar";
+import { useRouter } from "next/navigation";
+import { ExternalLink, Github, Globe, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { api, ApiError } from "@/lib/api";
+import { toast } from "sonner";
 
 export interface ProjectDetailProps {
   id: string;
-  projectName: string;
-  tracks: string[];
-  description: string;
-  fullDescription: string;
-  thumbnailUrl: string;
-  techStack: string[];
-  launchDate?: string;
+  title: string;
+  trackNames?: string[];
+  description?: string;
+  thumbnailImageUrl: string;
+  techStacks?: string[];
+  userId?: number;
   links?: {
     website?: string;
     github?: string;
-    googlePlay?: string;
-    appStore?: string;
   };
   members?: Array<{
     id: string;
     name: string;
-    role: string;
+    role?: string;
     image?: string;
+    trackName?: string;
   }>;
 }
 
 export function ProjectDetailView({
-  projectName,
-  tracks,
-  description,
-  fullDescription,
-  thumbnailUrl,
-  techStack,
-  launchDate,
+  id,
+  title,
+  trackNames = [],
+  description = "",
+  thumbnailImageUrl,
+  techStacks = [],
+  userId,
   links,
   members,
 }: ProjectDetailProps) {
+  const { user } = useAuth();
+  const router = useRouter();
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // 이미지 URL 정규화 (프로토콜이 없으면 추가)
+  const normalizeImageUrl = (url: string) => {
+    if (!url) return "";
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    return `http://${url}`;
+  };
+
+  const imageUrl = normalizeImageUrl(thumbnailImageUrl);
+
+  // 수정/삭제 권한 체크 (본인 또는 ADMIN)
+  const canEdit = user && (user.id === userId || user.role === "ADMIN");
+
+  const handleDelete = async () => {
+    if (!canEdit) return;
+
+    setIsDeleting(true);
+    try {
+      await api.delete(`/projects/${id}`);
+      toast.success("프로젝트가 삭제되었습니다.");
+      router.push("/projects");
+    } catch (error) {
+      if (error instanceof ApiError) {
+        toast.error(error.message || "삭제 중 오류가 발생했습니다.");
+      } else {
+        toast.error("삭제 중 오류가 발생했습니다.");
+      }
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
+    }
+  };
+
   return (
     <article className="min-h-screen bg-background">
       {/* Hero Section */}
       <div className="relative h-64 w-full overflow-hidden bg-muted md:h-[420px]">
         <Image
-          src={thumbnailUrl}
-          alt={projectName}
+          src={imageUrl}
+          alt={title}
           fill
           className="object-cover opacity-90"
           priority
@@ -62,24 +114,49 @@ export function ProjectDetailView({
         <div className="relative -mt-16 mb-10 md:mb-12">
           <div className="rounded-lg border border-border bg-background p-6 shadow-lg md:p-8">
             <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <h1 className="mb-2 text-3xl font-bold md:text-4xl">
-                  {projectName}
-                </h1>
+              <div className="flex-1">
+                <h1 className="mb-2 text-3xl font-bold md:text-4xl">{title}</h1>
                 <p className="text-lg text-muted-foreground">{description}</p>
               </div>
-              <div className="flex gap-2">
-                <Badge className="bg-orange-500 text-white hover:bg-orange-600">
-                  {tracks.join(", ")}
-                </Badge>
+              <div className="flex flex-col items-end gap-3">
+                {trackNames && trackNames.length > 0 && (
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {trackNames.map((track) => (
+                      <Badge
+                        key={track}
+                        className="bg-orange-500 text-white hover:bg-orange-600"
+                      >
+                        {track}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                {canEdit && (
+                  <div className="flex gap-1">
+                    <Button
+                      asChild
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-gray-600 hover:text-blue-600 hover:bg-blue-50"
+                      title="프로젝트 수정"
+                    >
+                      <Link href={`/projects/${id}/edit`}>
+                        <Edit className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-gray-600 hover:text-red-600 hover:bg-red-50"
+                      onClick={() => setIsDeleteDialogOpen(true)}
+                      title="프로젝트 삭제"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
-
-            {launchDate && (
-              <p className="text-sm text-muted-foreground">
-                런칭일: {launchDate}
-              </p>
-            )}
           </div>
         </div>
 
@@ -88,7 +165,7 @@ export function ProjectDetailView({
           <h2 className="mb-4 text-2xl font-bold">프로젝트 소개</h2>
           <div className="prose prose-sm max-w-none dark:prose-invert">
             <p className="whitespace-pre-wrap text-base leading-relaxed text-muted-foreground">
-              {fullDescription}
+              {description}
             </p>
           </div>
         </div>
@@ -97,7 +174,7 @@ export function ProjectDetailView({
         <div className="mb-10 md:mb-12">
           <h2 className="mb-4 text-2xl font-bold">기술 스택</h2>
           <div className="flex flex-wrap gap-2">
-            {techStack.map((tech) => (
+            {techStacks.map((tech) => (
               <Badge
                 key={tech}
                 className="bg-gray-200 px-3 py-1 text-sm text-gray-700 hover:bg-gray-300"
@@ -139,30 +216,6 @@ export function ProjectDetailView({
                   </a>
                 </Button>
               )}
-              {links.googlePlay && (
-                <Button asChild variant="outline" className="gap-2">
-                  <a
-                    href={links.googlePlay}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Play Store
-                    <ExternalLink className="ml-1 h-4 w-4" />
-                  </a>
-                </Button>
-              )}
-              {links.appStore && (
-                <Button asChild variant="outline" className="gap-2">
-                  <a
-                    href={links.appStore}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    App Store
-                    <ExternalLink className="ml-1 h-4 w-4" />
-                  </a>
-                </Button>
-              )}
             </div>
           </div>
         )}
@@ -175,31 +228,32 @@ export function ProjectDetailView({
               {members.map((member) => (
                 <div
                   key={member.id}
-                  className="flex items-center gap-3 rounded-lg border border-border p-4 transition-colors hover:bg-muted/50"
+                  className="flex items-start gap-3 rounded-lg border border-border p-4 transition-colors hover:bg-muted/50"
                 >
-                  {member.image && (
-                    <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-full">
-                      <Image
-                        src={member.image}
-                        alt={member.name}
-                        fill
-                        className="object-cover"
-                        unoptimized
-                      />
+                  <UserAvatar
+                    src={member.image}
+                    name={member.name}
+                    className="h-12 w-12 flex-shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <p className="truncate text-sm font-medium">
+                        {member.name}
+                      </p>
+                      {member.trackName && (
+                        <Badge
+                          variant="secondary"
+                          className="text-xs py-0 px-1.5 flex-shrink-0"
+                        >
+                          {member.trackName}
+                        </Badge>
+                      )}
                     </div>
-                  )}
-                  {!member.image && (
-                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gray-200 text-sm font-semibold text-gray-600">
-                      {member.name[0]}
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      {member.name}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {member.role}
-                    </p>
+                    {member.role && (
+                      <p className="truncate text-xs font-medium text-gray-700">
+                        {member.role}
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -212,10 +266,37 @@ export function ProjectDetailView({
         {/* Back Navigation */}
         <div className="pb-10 md:pb-12">
           <Button asChild variant="outline">
-            <a href="/projects">← 모든 프로젝트로</a>
+            <Link href="/projects">← 모든 프로젝트로</Link>
           </Button>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>프로젝트 삭제</AlertDialogTitle>
+            <AlertDialogDescription>
+              정말로 이 프로젝트를 삭제하시겠습니까?
+              <br />
+              삭제된 프로젝트는 복구할 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? "삭제 중..." : "삭제"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </article>
   );
 }

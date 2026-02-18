@@ -6,46 +6,46 @@ import { ProjectHeader } from "@/components/gallery/ProjectHeader";
 import { ProjectFilters } from "@/components/gallery/ProjectFilters";
 import { ProjectGalleryGrid } from "@/components/gallery/ProjectGalleryGrid";
 import { ProjectCardProps } from "@/components/gallery/ProjectCard";
-import { api, AdminTrack } from "@/lib/api";
+import { api } from "@/lib/api";
+
+export interface ProjectTrackFilter {
+  trackId: number;
+  trackName: string;
+}
 
 export default function ProjectsPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState("all");
+  const [activeFilter, setActiveFilter] = useState<number | "all">("all");
 
-  // Fetch projects from API
-  const { data: projects = [], isLoading } = useQuery({
-    queryKey: ["projects"],
-    queryFn: () => api.get<ProjectCardProps[]>("/projects"),
-  });
-
-  // Fetch tracks from API
-  const { data: tracksData } = useQuery({
-    queryKey: ["tracks"],
+  const { data: projectsResponse, isLoading } = useQuery({
+    queryKey: ["projects", activeFilter, searchQuery],
     queryFn: () =>
-      api
-        .get<{ content: AdminTrack[] }>("/admin/tracks")
-        .then((res) => res.content),
+      api.get<{
+        content: ProjectCardProps[];
+        totalElements: number;
+        totalPages: number;
+      }>("/projects", {
+        trackId: activeFilter !== "all" ? activeFilter : undefined,
+        keyword: searchQuery || undefined,
+        page: 0,
+        size: 50,
+        sort: "createdAt,desc",
+      }),
   });
 
-  const tracks = tracksData ?? [];
+  const projects = projectsResponse?.content ?? [];
 
-  // 검색 및 필터링
+  const { data: tracksResponse } = useQuery({
+    queryKey: ["project-track-filters"],
+    queryFn: () =>
+      api.get<{ tracks: ProjectTrackFilter[] }>("/projects/tracks"),
+  });
+
+  const tracks = tracksResponse?.tracks ?? [];
+
   const filteredProjects = useMemo(() => {
-    return projects.filter((project) => {
-      // 검색 필터
-      const matchesSearch = project.projectName
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
-
-      // 트랙 필터 (trackName 기반)
-      const matchesTrack =
-        activeFilter === "all" ||
-        tracks.find((t) => t.trackId.toString() === activeFilter)?.trackName ===
-          project.category;
-
-      return matchesSearch && matchesTrack;
-    });
-  }, [projects, searchQuery, activeFilter, tracks]);
+    return projects;
+  }, [projects]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">

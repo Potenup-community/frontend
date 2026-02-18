@@ -13,23 +13,27 @@ interface ProjectDetailProps {
 }
 
 interface ProjectDetail {
-  id: string;
-  projectName: string;
-  tracks: string[];
+  projectId: number;
+  title: string;
   description: string;
-  fullDescription?: string;
-  thumbnailUrl: string;
-  techStack: string[];
-  launchDate?: string;
-  links?: {
-    website?: string;
-    github?: string;
-  };
+  githubUrl: string;
+  deployUrl?: string;
+  thumbnailImageUrl: string;
+  techStacks: string[];
   members: Array<{
-    id: string;
+    userId: number;
     name: string;
-    role: string;
+    profileImageUrl: string;
+    trackName: string;
+    position: string;
   }>;
+  viewCount: number;
+  author: {
+    userId: number;
+    name: string;
+  };
+  createdAt: string;
+  modifiedAt: string;
 }
 
 export default function ProjectDetailPage({ params }: ProjectDetailProps) {
@@ -61,10 +65,29 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
     );
   }
 
-  return (
-    <ProjectDetailView
-      {...project}
-      fullDescription={project.fullDescription || project.description}
-    />
-  );
+  // API 응답을 컴포넌트 props로 매핑
+  const normalizedProject = {
+    id: project.projectId.toString(),
+    title: project.title,
+    trackNames: project.members
+      .map((m) => m.trackName)
+      .filter((v, i, a) => a.indexOf(v) === i), // 중복 제거
+    description: project.description,
+    thumbnailImageUrl: project.thumbnailImageUrl,
+    techStacks: project.techStacks,
+    userId: project.author.userId,
+    links: {
+      github: project.githubUrl,
+      website: project.deployUrl,
+    },
+    members: project.members.map((m) => ({
+      id: m.userId.toString(),
+      name: m.name,
+      role: m.position,
+      image: m.profileImageUrl,
+      trackName: m.trackName,
+    })),
+  };
+
+  return <ProjectDetailView {...normalizedProject} />;
 }

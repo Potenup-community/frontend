@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiError, AdminTrack } from "@/lib/api";
-import { Loader2, FolderPlus } from "lucide-react";
+import { Loader2, FolderEdit } from "lucide-react";
 
 interface MemberDraft {
   id: string;
@@ -33,7 +33,9 @@ const createMemberId = () =>
     ? crypto.randomUUID()
     : `member-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-export default function ProjectCreatePage() {
+export default function ProjectEditPage() {
+  const params = useParams();
+  const projectId = params?.projectId as string;
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
   const [title, setTitle] = useState("");
@@ -42,6 +44,7 @@ export default function ProjectCreatePage() {
   const [deployUrl, setDeployUrl] = useState("");
   const [thumbnail, setThumbnail] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [existingThumbnailUrl, setExistingThumbnailUrl] = useState<string>("");
   const [techInput, setTechInput] = useState("");
   const [techStacks, setTechStacks] = useState<string[]>([]);
   const [members, setMembers] = useState<MemberDraft[]>([]);
@@ -53,6 +56,13 @@ export default function ProjectCreatePage() {
   );
   const [dirtyFields, setDirtyFields] = useState<Record<string, boolean>>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+
+  // Fetch existing project data
+  const { data: project, isLoading: isLoadingProject } = useQuery({
+    queryKey: ["project", projectId],
+    queryFn: () => api.get<any>(`/projects/${projectId}`),
+  });
 
   // Fetch available tracks
   const { data: tracksData } = useQuery({
@@ -65,6 +75,50 @@ export default function ProjectCreatePage() {
 
   const tracks = tracksData ?? [];
 
+  // 권한 체크
+  useEffect(() => {
+    if (project && user) {
+      const canEdit = user.id === project.userId || user.role === "ADMIN";
+      if (!canEdit) {
+        router.push(`/projects/${projectId}`);
+      }
+    }
+  }, [project, user, projectId, router]);
+
+  // Load existing project data into form
+  useEffect(() => {
+    if (project && !isDataLoaded) {
+      setTitle(project.projectName || "");
+      setDescription(project.description || "");
+
+      // GitHub URL에서 경로만 추출
+      if (project.links?.github) {
+        const path = project.links.github.replace(
+          /^https?:\/\/github\.com\//i,
+          "",
+        );
+        setGithubPath(path);
+      }
+
+      setDeployUrl(project.links?.website || "");
+      setTechStacks(project.techStack || []);
+      setExistingThumbnailUrl(project.thumbnailUrl || "");
+
+      // 멤버 데이터 로드
+      if (project.members && Array.isArray(project.members)) {
+        const loadedMembers = project.members.map((member: any) => ({
+          id: createMemberId(),
+          name: member.name || "",
+          trackId: member.trackId || null,
+          position: member.role || member.position || "",
+        }));
+        setMembers(loadedMembers);
+      }
+
+      setIsDataLoaded(true);
+    }
+  }, [project, isDataLoaded]);
+
   useEffect(() => {
     if (!thumbnail) {
       setThumbnailPreview(null);
@@ -76,19 +130,6 @@ export default function ProjectCreatePage() {
 
     return () => URL.revokeObjectURL(previewUrl);
   }, [thumbnail]);
-
-  useEffect(() => {
-    if (user?.name && members.length === 0) {
-      setMembers([
-        {
-          id: createMemberId(),
-          name: user.name,
-          trackId: user.trackId ?? null,
-          position: "",
-        },
-      ]);
-    }
-  }, [user?.name, user?.trackId, members.length]);
 
   const setFieldError = (field: string, message: string | null) => {
     setFieldErrors((prev) => {
@@ -140,30 +181,10 @@ export default function ProjectCreatePage() {
           }
         }
         break;
-      case "thumbnailImage":
-        setFieldError(
-          "thumbnailImage",
-          thumbnail ? null : "썸네일 이미지를 업로드해주세요.",
-        );
-        break;
       case "techStacks":
         setFieldError(
           "techStacks",
           techStacks.length > 0 ? null : "기술 스택을 최소 1개 입력해주세요.",
-        );
-        break;
-      case "myPosition":
-        setFieldError(
-          "myPosition",
-          user?.name && !members[0]?.position
-            ? "내 포지션을 선택해주세요."
-            : null,
-        );
-        break;
-      case "myTrack":
-        setFieldError(
-          "myTrack",
-          user?.name && !members[0]?.trackId ? "트랙을 선택해주세요." : null,
         );
         break;
       default:
@@ -273,20 +294,8 @@ export default function ProjectCreatePage() {
       }
     }
 
-    if (!thumbnail) {
-      nextFieldErrors.thumbnailImage = "썸네일 이미지를 업로드해주세요.";
-    }
-
     if (techStacks.length === 0) {
       nextFieldErrors.techStacks = "기술 스택을 최소 1개 입력해주세요.";
-    }
-
-    if (user?.name && !members[0]?.position) {
-      nextFieldErrors.myPosition = "내 포지션을 선택해주세요.";
-    }
-
-    if (user?.name && !members[0]?.trackId) {
-      nextFieldErrors.myTrack = "트랙을 선택해주세요.";
     }
 
     if (Object.keys(nextFieldErrors).length > 0) {
@@ -315,41 +324,22 @@ export default function ProjectCreatePage() {
         members: filteredMembers,
       };
 
-      const formData = new FormData();
-      formData.append(
-        "data",
-        new Blob([JSON.stringify(payload)], { type: "application/json" }),
-      );
-      formData.append("thumbnailImage", thumbnail as File);
+      // 썸네일이 변경된 경우에만 multipart로 전송
+      if (thumbnail) {
+        const formData = new FormData();
+        formData.append(
+          "data",
+          new Blob([JSON.stringify(payload)], { type: "application/json" }),
+        );
+        formData.append("thumbnailImage", thumbnail);
 
-      const response = await api.upload<any>("/projects", formData);
-
-      // 응답 전체 로깅 (디버깅용)
-      console.log("Project creation response:", response);
-
-      // 여러 필드 시도 (API 응답 구조에 따라)
-      const projectId =
-        response?.projectId ||
-        response?.id ||
-        response?.data?.projectId ||
-        response?.data?.id;
-
-      console.log("Extracted projectId:", projectId);
-
-      if (projectId) {
-        // 약간의 딜레이 후 이동 (서버 sync 보장)
-        setTimeout(() => {
-          router.push(`/projects/${projectId}`);
-        }, 500);
-        return;
+        await api.upload(`/projects/${projectId}`, formData, "PUT");
+      } else {
+        // 썸네일 변경 없이 데이터만 업데이트
+        await api.put(`/projects/${projectId}`, payload);
       }
 
-      console.error("Could not find projectId in response:", response);
-      setFormError(
-        "등록은 완료됐지만 프로젝트 정보를 찾을 수 없습니다. (응답 확인: " +
-          JSON.stringify(response) +
-          ")",
-      );
+      router.push(`/projects/${projectId}`);
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.errors && error.errors.length > 0) {
@@ -381,12 +371,28 @@ export default function ProjectCreatePage() {
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
-        <FolderPlus className="h-16 w-16 text-muted-foreground mb-4" />
+        <FolderEdit className="h-16 w-16 text-muted-foreground mb-4" />
         <h2 className="text-xl font-semibold mb-2">로그인이 필요합니다</h2>
         <p className="text-muted-foreground mb-4">
-          프로젝트를 등록하려면 로그인이 필요합니다.
+          프로젝트를 수정하려면 로그인이 필요합니다.
         </p>
         <Button onClick={() => router.push("/signin")}>로그인하기</Button>
+      </div>
+    );
+  }
+
+  if (isLoadingProject) {
+    return (
+      <div className="mx-auto flex max-w-3xl items-center justify-center px-4 py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  if (!project) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-20 text-center">
+        <h1 className="text-2xl font-bold">프로젝트를 찾을 수 없습니다</h1>
       </div>
     );
   }
@@ -394,9 +400,9 @@ export default function ProjectCreatePage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
       <header className="mb-8">
-        <h1 className="text-3xl font-bold">프로젝트 추가</h1>
+        <h1 className="text-3xl font-bold">프로젝트 수정</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          프로젝트 정보를 입력하면 갤러리에 등록됩니다.
+          프로젝트 정보를 수정합니다.
         </p>
       </header>
 
@@ -406,6 +412,7 @@ export default function ProjectCreatePage() {
             {formError}
           </div>
         )}
+
         <section className="space-y-4">
           <div>
             <label className="mb-2 block text-sm font-medium">
@@ -502,33 +509,38 @@ export default function ProjectCreatePage() {
 
           <div>
             <label className="mb-2 block text-sm font-medium">
-              썸네일 이미지
+              썸네일 이미지 (선택)
             </label>
             <Input
               type="file"
               accept="image/*"
               onChange={(event) => {
                 setThumbnail(event.target.files?.[0] ?? null);
-                if (touchedFields.thumbnailImage) {
-                  setTimeout(() => validateField("thumbnailImage"), 0);
-                }
                 markDirty("thumbnailImage");
               }}
-              onBlur={() => markTouched("thumbnailImage")}
-              required
             />
-            {shouldShowError("thumbnailImage") && (
-              <p className="mt-1 text-xs text-red-600">
-                {fieldErrors.thumbnailImage}
-              </p>
-            )}
+            <p className="mt-1 text-xs text-muted-foreground">
+              변경하지 않으면 기존 이미지가 유지됩니다
+            </p>
             {thumbnailPreview && (
               <div className="mt-3 overflow-hidden rounded-lg border border-border">
                 <img
                   src={thumbnailPreview}
-                  alt="썸네일 미리보기"
+                  alt="새 썸네일 미리보기"
                   className="h-48 w-full object-cover"
                 />
+              </div>
+            )}
+            {!thumbnailPreview && existingThumbnailUrl && (
+              <div className="mt-3 overflow-hidden rounded-lg border border-border">
+                <img
+                  src={existingThumbnailUrl}
+                  alt="현재 썸네일"
+                  className="h-48 w-full object-cover opacity-60"
+                />
+                <p className="p-2 text-center text-xs text-muted-foreground">
+                  현재 썸네일
+                </p>
               </div>
             )}
           </div>
@@ -598,33 +610,16 @@ export default function ProjectCreatePage() {
               >
                 <div className="grid gap-6 sm:grid-cols-3">
                   <div>
-                    <div className="mb-2 flex items-center gap-2">
-                      <label className="block text-sm font-medium">이름</label>
-                      {index === 0 && user?.name && (
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                          본인
-                        </span>
-                      )}
-                    </div>
+                    <label className="mb-2 block text-sm font-medium">
+                      이름
+                    </label>
                     <Input
                       value={member.name}
                       onChange={(event) =>
                         updateMember(index, "name", event.target.value)
                       }
                       placeholder="멤버 이름"
-                      readOnly={index === 0 && !!user?.name}
-                      className={
-                        index === 0 && user?.name
-                          ? "bg-gray-50 text-gray-700"
-                          : undefined
-                      }
-                      required={index === 0 && !!user?.name}
                     />
-                    {index === 0 && user?.name && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        본인 이름은 자동 입력됩니다.
-                      </p>
-                    )}
                   </div>
                   <div>
                     <label className="mb-2 block text-sm font-medium">
@@ -641,10 +636,8 @@ export default function ProjectCreatePage() {
                             : null,
                         )
                       }
-                      onBlur={() => markTouched("myTrack")}
                       className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                      disabled={index === 0 && !!user?.trackId}
-                      required={index === 0 || !!member.name.trim()}
+                      required={!!member.name.trim()}
                     >
                       <option value="">트랙 선택</option>
                       {tracks.map((track) => (
@@ -653,11 +646,6 @@ export default function ProjectCreatePage() {
                         </option>
                       ))}
                     </select>
-                    {index === 0 && shouldShowError("myTrack") && (
-                      <p className="mt-1 text-xs text-red-600">
-                        {fieldErrors.myTrack}
-                      </p>
-                    )}
                   </div>
                   <div>
                     <label className="mb-2 block text-sm font-medium">
@@ -668,9 +656,8 @@ export default function ProjectCreatePage() {
                       onChange={(event) =>
                         updateMember(index, "position", event.target.value)
                       }
-                      onBlur={() => markTouched("myPosition")}
                       className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                      required={index === 0 || !!member.name.trim()}
+                      required={!!member.name.trim()}
                     >
                       <option value="">포지션 선택</option>
                       {POSITION_OPTIONS.map((option) => (
@@ -679,24 +666,17 @@ export default function ProjectCreatePage() {
                         </option>
                       ))}
                     </select>
-                    {index === 0 && shouldShowError("myPosition") && (
-                      <p className="mt-1 text-xs text-red-600">
-                        {fieldErrors.myPosition}
-                      </p>
-                    )}
                   </div>
                 </div>
-                {!(index === 0 && user?.name) && (
-                  <div className="mt-3 flex justify-end">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => removeMember(index)}
-                    >
-                      제거
-                    </Button>
-                  </div>
-                )}
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => removeMember(index)}
+                  >
+                    제거
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -704,11 +684,19 @@ export default function ProjectCreatePage() {
 
         <div className="flex justify-end gap-3">
           <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.back()}
+            disabled={isSubmitting}
+          >
+            취소
+          </Button>
+          <Button
             type="submit"
             className="bg-orange-400 text-white hover:bg-orange-500 hover:text-white"
             disabled={isSubmitting}
           >
-            {isSubmitting ? "등록 중..." : "프로젝트 등록"}
+            {isSubmitting ? "수정 중..." : "프로젝트 수정"}
           </Button>
         </div>
       </form>
