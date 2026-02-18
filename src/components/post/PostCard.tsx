@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Heart, MessageCircle, Eye } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { UserAvatar } from '@/components/ui/UserAvatar';
+import { EquippedBadge } from '@/components/ui/EquippedBadge';
 import { TopicBadge } from '@/components/ui/TopicBadge';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -35,11 +36,15 @@ export function PostCard({ post, className }: PostCardProps) {
                 src={post.author.profileImageUrl}
                 name={post.author.name}
                 className="h-10 w-10 flex-shrink-0 ring-2 ring-background"
+                frameSrc={post.items?.find((i) => i.itemType === 'FRAME')?.imageUrl}
               />
               <div className="min-w-0">
-                <p className="font-medium text-sm truncate">
-                  {post.author.trackName ? `[${post.author.trackName}] ` : ''}{post.author.name}
-                </p>
+                <div className="flex items-center gap-1 min-w-0">
+                  <p className="font-medium text-sm truncate">
+                    {post.author.trackName ? `[${post.author.trackName}] ` : ''}{post.author.name}
+                  </p>
+                  <EquippedBadge items={post.items} className="h-[17px] w-auto flex-shrink-0" />
+                </div>
                 <p className="text-xs text-muted-foreground">{timeAgo}</p>
               </div>
             </div>

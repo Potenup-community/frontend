@@ -197,6 +197,15 @@ export class ApiError extends Error {
 
 export const api = new ApiClient(API_BASE_URL);
 
+// 아이템/상점 이미지 URL → 절대 경로로 변환
+export function resolveApiImageUrl(url?: string | null): string {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) return url;
+  const base = process.env.NEXT_PUBLIC_API_BASE || '';
+  if (url.startsWith('/')) return `${base}${url}`;
+  return `${base}/${url}`;
+}
+
 // Type definitions for API responses
 export interface User {
   id: number;
@@ -232,6 +241,7 @@ export interface PostSummary {
   isReacted: boolean;
   createdAt: string;
   highlightType?: string;
+  items?: EquippedItem[];
 }
 
 export interface Post {
@@ -254,6 +264,7 @@ export interface Post {
   createdAt: string;
   updatedAt: string;
   highlightType?: string;
+  items?: EquippedItem[];
 }
 
 export interface Comment {
@@ -274,6 +285,7 @@ export interface Comment {
   updatedAt: string;
   mentionedUsers?: Array<{ id: number; name: string }>;
   replies?: Comment[];
+  items?: EquippedItem[];
 }
 
 // ==================== Post API Types ====================
@@ -505,6 +517,7 @@ export interface Study {
     trackId?: number;
     trackName?: string;
     profileImageUrl?: string;
+    items?: EquippedItem[];
   };
   schedule?: {
     id: number;
@@ -603,6 +616,7 @@ export interface StudyLeader {
   trackId?: number;
   trackName?: string;
   profileImageUrl?: string;
+  items?: EquippedItem[];
 }
 
 export interface StudySchedule {
@@ -620,6 +634,7 @@ export interface StudyParticipant {
   trackName?: string;
   joinedAt?: string;
   profileImageUrl?: string;
+  items?: EquippedItem[];
 }
 
 export interface StudyDetail {
@@ -831,6 +846,137 @@ export const scheduleApi = {
   deleteSchedule: (id: number) => api.delete<void>(`/studies/schedules/${id}`),
 };
 
+// ==================== Points Types ====================
+
+export type PointType =
+  | 'ATTENDANCE' | 'ATTENDANCE_STREAK' | 'WRITE_POST' | 'WRITE_COMMENT'
+  | 'RECEIVE_LIKE_POST' | 'RECEIVE_LIKE_COMMENT' | 'GIVE_LIKE_POST' | 'GIVE_LIKE_COMMENT'
+  | 'STUDY_CREATE' | 'STUDY_JOIN' | 'EVENT_ADMIN' | 'USE_SHOP';
+
+export type PointRefType =
+  | 'POST' | 'COMMENT' | 'POST_REACTION' | 'COMMENT_REACTION'
+  | 'STUDY' | 'ATTENDANCE' | 'EVENT' | 'SHOP_ITEM' | 'UPGRADE_SHOP_ITEM';
+
+export interface PointBalanceResponse {
+  balance: number;
+  lastUpdatedAt: string;
+}
+
+export interface PointHistoryResponse {
+  id: number;
+  amount: number;
+  type: PointType;
+  description: string;
+  refType: PointRefType;
+  refId: number;
+  createdAt: string;
+}
+
+export interface PointHistoriesResponse {
+  histories: PointHistoryResponse[];
+  hasNext: boolean;
+}
+
+export interface PointPeriodSummaryResponse {
+  totalAmount: number;
+}
+
+// ==================== Shop Types ====================
+
+export type ShopItemType = 'BADGE' | 'PET' | 'FRAME';
+
+export interface EquippedItem {
+  itemType: ShopItemType;
+  imageUrl: string;
+}
+
+export interface ShopItemSummaryDto {
+  id: number;
+  name: string;
+  price: number;
+  itemType: ShopItemType;
+  consumable: boolean;
+  durationDays?: number;
+  imageUrl?: string;
+}
+
+export interface ShopItemGroupResponse {
+  itemType: ShopItemType;
+  items: ShopItemSummaryDto[];
+}
+
+export interface ShopItemDetailResponse {
+  id: number;
+  name: string;
+  description?: string;
+  price: number;
+  itemType: ShopItemType;
+  consumable: boolean;
+  durationDays?: number;
+  imageUrl?: string;
+}
+
+// ==================== Inventory Types ====================
+
+export interface InventoryItemDto {
+  inventoryId: number;
+  shopItemId: number;
+  name: string;
+  description?: string;
+  itemType: ShopItemType;
+  imageUrl?: string;
+  consumable: boolean;
+  equipped: boolean;
+  remainingDays?: number | null;
+}
+
+export interface InventoryItemGroupResponse {
+  itemType: ShopItemType;
+  items: InventoryItemDto[];
+}
+
+// ==================== Points API Functions ====================
+
+export const pointApi = {
+  getBalance: () => api.get<PointBalanceResponse>('/points/balance'),
+
+  getHistory: (params?: {
+    filter?: string;
+    type?: PointType;
+    page?: number;
+    size?: number;
+    sort?: string;
+  }) => api.get<PointHistoriesResponse>('/points/history', params),
+
+  getStats: () => api.get<Record<string, number>>('/points/stats'),
+
+  getSummary: (params?: { start?: string; end?: string; earnedOnly?: boolean }) =>
+    api.get<PointPeriodSummaryResponse>('/points/summary', params),
+};
+
+// ==================== Shop API Functions ====================
+
+export const shopApi = {
+  getItems: () => api.get<ShopItemGroupResponse[]>('/shop/items'),
+
+  getItem: (itemId: number) => api.get<ShopItemDetailResponse>(`/shop/items/${itemId}`),
+
+  purchase: (itemId: number) =>
+    api.post<void>(`/shop/items/${itemId}/purchase`),
+};
+
+// ==================== Inventory API Functions ====================
+
+export const inventoryApi = {
+  getMyInventory: () => api.get<InventoryItemGroupResponse[]>('/inventory/me'),
+
+  equip: (inventoryId: number) =>
+    api.patch<void>(`/inventory/${inventoryId}/equip`),
+
+  unequip: (inventoryId: number) =>
+    api.patch<void>(`/inventory/${inventoryId}/unequip`),
+};
+
 // ==================== Admin API Functions ====================
 
 export const adminApi = {
@@ -909,4 +1055,20 @@ export const adminApi = {
       ...params,
       status: "PENDING",
     }),
+
+  // 포인트 직접 지급
+  givePoints: (data: { userId: number; amount: number }) =>
+    api.post<void>('/admin/points/give', data),
+
+  // 상점 아이템 등록
+  createShopItem: (formData: FormData) =>
+    api.upload<{ id: number }>('/admin/shop/items', formData),
+
+  // 상점 아이템 수정
+  updateShopItem: (itemId: number, formData: FormData) =>
+    api.upload<void>(`/admin/shop/items/${itemId}`, formData),
+
+  // 상점 아이템 숨김
+  hideShopItem: (itemId: number) =>
+    api.patch<void>(`/admin/shop/items/${itemId}/hide`),
 };

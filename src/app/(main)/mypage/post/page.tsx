@@ -31,6 +31,7 @@ export default function MyPosts() {
       isReacted: item.reactions?.some((r: any) => r.reactedByMe) || false,
       createdAt: item.wroteAt,
       highlightType: item.highlightType,
+      items: item.items || item.writerItems || item.equippedItems || [],
     }));
 
     return {

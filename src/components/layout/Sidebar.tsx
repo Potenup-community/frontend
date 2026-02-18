@@ -7,9 +7,10 @@ import { UserAvatar } from '@/components/ui/UserAvatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Users, Flame, Hash, FileText } from 'lucide-react';
+import { Users, Flame, Hash, FileText, Coins, Store, Package } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { dashboardApi } from '@/lib/api';
+import { dashboardApi, pointApi, inventoryApi, resolveApiImageUrl } from '@/lib/api';
+import { EquippedBadge } from '@/components/ui/EquippedBadge';
 
 export function Sidebar() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -18,8 +19,27 @@ export function Sidebar() {
   const { data: dashboard } = useQuery({
     queryKey: ['dashboard-overview'],
     queryFn: () => dashboardApi.getOverview(),
-    staleTime: 5 * 60 * 1000, // 5분 캐시
+    staleTime: 5 * 60 * 1000,
   });
+
+  const { data: balance } = useQuery({
+    queryKey: ['points', 'balance'],
+    queryFn: () => pointApi.getBalance(),
+    enabled: isAuthenticated,
+    staleTime: 60 * 1000,
+  });
+
+  const { data: inventory } = useQuery({
+    queryKey: ['inventory', 'me'],
+    queryFn: () => inventoryApi.getMyInventory(),
+    enabled: isAuthenticated,
+    staleTime: 60 * 1000,
+  });
+
+  const allItems = inventory?.flatMap((g) => g.items) ?? [];
+  const equippedPet = allItems.find((i) => i.itemType === 'PET' && i.equipped);
+  const equippedFrame = allItems.find((i) => i.itemType === 'FRAME' && i.equipped);
+  const equippedBadgeItem = allItems.find((i) => i.itemType === 'BADGE' && i.equipped);
 
   if (isLoading) {
     return <SidebarSkeleton />;
@@ -41,30 +61,43 @@ export function Sidebar() {
                     src={user.profileImageUrl}
                     name={user.name}
                     className="h-28 w-28 border-4 border-card shadow-lg"
+                    petSrc={equippedPet?.imageUrl ?? null}
+                    frameSrc={equippedFrame?.imageUrl ?? null}
+                    frameTransform="translateX(0.5%) scale(1.4)"
                   />
-                  <h3 className="mt-3 font-semibold text-lg">{user.name}</h3>
+                  <div className="mt-3 flex items-center gap-1.5">
+                    <h3 className="font-semibold text-lg">{user.name}</h3>
+                    {equippedBadgeItem?.imageUrl && (
+                      <img
+                        src={resolveApiImageUrl(equippedBadgeItem.imageUrl)}
+                        alt="Badge"
+                        className="h-[22px] w-auto"
+                        style={{ imageRendering: 'pixelated' }}
+                      />
+                    )}
+                  </div>
                   <p className="text-sm text-muted-foreground">{user.trackName}</p>
 
-                  <div className="grid grid-cols-3 gap-4 mt-4 w-full pt-4 border-t border-border">
-                    <Link href="/mypage/post" className="text-center group">
-                      <div className="text-lg font-bold text-muted-foreground group-hover:text-primary transition-colors">
-                        -
-                      </div>
-                      <div className="text-xs text-muted-foreground">게시글</div>
+                  {/* 포인트 + 상점 */}
+                  <div className="flex items-center gap-2 mt-3">
+                    <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-md border-none shadow-none bg-background text-orange-500 text-xs font-medium">
+                      <Coins className="h-3 w-3" />
+                      {balance?.balance.toLocaleString() ?? 0}P
+                    </div>
+                    <Link href="/shop">
+                      <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+                        <Store className="h-3.5 w-3.5" />
+                        상점
+                      </Button>
                     </Link>
-                    <Link href="/mypage/comment" className="text-center group">
-                      <div className="text-lg font-bold text-muted-foreground group-hover:text-primary transition-colors">
-                        -
-                      </div>
-                      <div className="text-xs text-muted-foreground">댓글</div>
-                    </Link>
-                    <Link href="/mypage/like" className="text-center group">
-                      <div className="text-lg font-bold text-muted-foreground group-hover:text-primary transition-colors">
-                        -
-                      </div>
-                      <div className="text-xs text-muted-foreground">좋아요</div>
+                    <Link href="/mypage/inventory">
+                      <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+                        <Package className="h-3.5 w-3.5" />
+                        인벤토리
+                      </Button>
                     </Link>
                   </div>
+
                 </div>
               </CardContent>
             </Card>

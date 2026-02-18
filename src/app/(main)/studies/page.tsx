@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { UserAvatar } from '@/components/ui/UserAvatar';
+import { EquippedBadge } from '@/components/ui/EquippedBadge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
@@ -62,6 +63,7 @@ export default function Studies() {
         trackId: item.leader?.trackId,
         trackName: item.leader?.trackName,
         profileImageUrl: item.leader?.profileImageUrl,
+        items: item.leader?.items || [],
       },
       schedule: item.schedule,
       isLeader: item.isLeader,
@@ -227,9 +229,13 @@ function StudyCard({ study }: { study: Study }) {
                 src={study.leader.profileImageUrl}
                 name={study.leader.name}
                 className="h-10 w-10 flex-shrink-0"
+                frameSrc={study.leader.items?.find((i) => i.itemType === 'FRAME')?.imageUrl}
               />
               <div className="min-w-0">
-                <p className="font-medium text-sm truncate">{study.leader.name}</p>
+                <div className="flex items-center gap-1 min-w-0">
+                  <p className="font-medium text-sm truncate">{study.leader.name}</p>
+                  <EquippedBadge items={study.leader.items} className="h-[13px] w-auto flex-shrink-0" />
+                </div>
                 <p className="text-xs text-muted-foreground">{timeAgo}</p>
               </div>
             </div>

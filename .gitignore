@@ -5,7 +5,7 @@ node_modules/
 .next/
 out/
 build/
-
+.claude/
 # 환경 변수 (보안을 위해 절대 올리면 안 됨)
 .env*.local
 
@@ -21,3 +21,5 @@ Thumbs.db
 # 문서
 api-docs.json
 api-docs_v2.json
+api-docs_v3.json
+api-docs_v4.json

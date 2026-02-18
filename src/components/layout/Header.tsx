@@ -44,6 +44,9 @@ export function Header() {
     if (tab.href === '/studies') {
       return pathname.startsWith('/studies');
     }
+    if (tab.href === '/shop') {
+      return pathname.startsWith('/shop');
+    }
     
     if (pathname !== '/') return false;
 
