@@ -1,12 +1,12 @@
 "use client";
 
 import { use } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ProjectDetailView } from "@/components/gallery/ProjectDetailView";
 import { ProjectDetailSkeleton } from "@/components/gallery/ProjectDetailSkeleton";
-import { api } from "@/lib/api";
+import { api, reactionApi } from "@/lib/api";
 
 interface ProjectDetailProps {
   params: Promise<{ projectId: string }>;
@@ -34,6 +34,8 @@ interface ProjectDetail {
   };
   createdAt: string;
   modifiedAt: string;
+  likeCount: number;
+  likedByMe: boolean;
 }
 
 export default function ProjectDetailPage({ params }: ProjectDetailProps) {
@@ -76,6 +78,8 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
     thumbnailImageUrl: project.thumbnailImageUrl,
     techStacks: project.techStacks,
     userId: project.author.userId,
+    isLiked: project.likedByMe,
+    likeCount: project.likeCount,
     links: {
       github: project.githubUrl,
       website: project.deployUrl,

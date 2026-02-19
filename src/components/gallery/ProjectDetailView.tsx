@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Github, Globe, Edit, Trash2 } from "lucide-react";
+import { ExternalLink, Github, Globe, Edit, Trash2, Flame } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -20,7 +21,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, reactionApi } from "@/lib/api";
 import { toast } from "sonner";
 
 export interface ProjectDetailProps {
@@ -31,6 +32,8 @@ export interface ProjectDetailProps {
   thumbnailImageUrl: string;
   techStacks?: string[];
   userId?: number;
+  isLiked?: boolean;
+  likeCount?: number;
   links?: {
     website?: string;
     github?: string;
@@ -52,13 +55,18 @@ export function ProjectDetailView({
   thumbnailImageUrl,
   techStacks = [],
   userId,
+  isLiked = false,
+  likeCount = 0,
   links,
   members,
 }: ProjectDetailProps) {
   const { user } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [visualIsLiked, setVisualIsLiked] = useState(isLiked);
+  const [visualLikeCount, setVisualLikeCount] = useState(likeCount);
 
   // 이미지 URL 정규화 (프로토콜이 없으면 추가)
   const normalizeImageUrl = (url: string) => {
@@ -71,6 +79,65 @@ export function ProjectDetailView({
 
   // 수정/삭제 권한 체크 (본인 또는 ADMIN)
   const canEdit = user && (user.id === userId || user.role === "ADMIN");
+
+  // 좋아요 클릭 핸들러
+  // 좋아요 Mutation with Optimistic Updates
+  const likeMutation = useMutation({
+    mutationFn: async (shouldLike: boolean) => {
+      if (shouldLike) {
+        await reactionApi.addReaction({
+          targetType: "PROJECT",
+          targetId: parseInt(id),
+          reactionType: "LIKE",
+        });
+      } else {
+        await reactionApi.removeReaction({
+          targetType: "PROJECT",
+          targetId: parseInt(id),
+          reactionType: "LIKE",
+        });
+      }
+    },
+    onSuccess: () => {
+      // 캐시 무효화 + 자동 리페치
+      queryClient.invalidateQueries({
+        queryKey: ["project", id],
+        refetchType: "all",
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ["projects"],
+        refetchType: "all",
+      });
+    },
+    onError: () => {
+      // 오류 시 상태 복원
+      setVisualIsLiked(!visualIsLiked);
+      setVisualLikeCount(
+        visualIsLiked ? visualLikeCount + 1 : Math.max(0, visualLikeCount - 1),
+      );
+      toast.error("좋아요 처리 중 오류가 발생했습니다.");
+    },
+  });
+
+  // 좋아요 클릭 핸들러
+  const handleLikeClick = async () => {
+    if (!user) {
+      toast.error("로그인이 필요합니다.");
+      return;
+    }
+
+    const nextLiked = !visualIsLiked;
+
+    // Optimistic Update - 즉시 UI 업데이트
+    setVisualIsLiked(nextLiked);
+    setVisualLikeCount(
+      nextLiked ? visualLikeCount + 1 : Math.max(0, visualLikeCount - 1),
+    );
+
+    // 서버와 동기화
+    likeMutation.mutate(nextLiked);
+  };
 
   const handleDelete = async () => {
     if (!canEdit) return;
@@ -120,7 +187,7 @@ export function ProjectDetailView({
               </div>
               <div className="flex flex-col items-end gap-3">
                 {trackNames && trackNames.length > 0 && (
-                  <div className="flex flex-wrap justify-end gap-2">
+                  <div className="flex flex-wrap justify-end gap-2 items-center">
                     {trackNames.map((track) => (
                       <Badge
                         key={track}
@@ -129,6 +196,40 @@ export function ProjectDetailView({
                         {track}
                       </Badge>
                     ))}
+                    {/* 좋아요 버튼 */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleLikeClick}
+                      disabled={likeMutation.isPending}
+                      className={`gap-1 ${visualIsLiked ? "text-orange-500" : "text-gray-600"}`}
+                      title={visualIsLiked ? "좋아요 취소" : "좋아요"}
+                    >
+                      <Flame
+                        className="h-4 w-4"
+                        fill={visualIsLiked ? "currentColor" : "none"}
+                      />
+                      <span className="text-xs">{visualLikeCount}</span>
+                    </Button>
+                  </div>
+                )}
+                {(!trackNames || trackNames.length === 0) && (
+                  <div className="flex gap-2 items-center">
+                    {/* 트랙이 없을 때 좋아요만 표시 */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleLikeClick}
+                      disabled={likeMutation.isPending}
+                      className={`gap-1 ${visualIsLiked ? "text-orange-500" : "text-gray-600"}`}
+                      title={visualIsLiked ? "좋아요 취소" : "좋아요"}
+                    >
+                      <Flame
+                        className="h-4 w-4"
+                        fill={visualIsLiked ? "currentColor" : "none"}
+                      />
+                      <span className="text-xs">{visualLikeCount}</span>
+                    </Button>
                   </div>
                 )}
                 {canEdit && (

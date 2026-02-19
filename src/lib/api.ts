@@ -418,14 +418,14 @@ export const commentApi = {
 export const reactionApi = {
   // 리액션 추가
   addReaction: (data: {
-    targetType: "POST" | "COMMENT";
+    targetType: "POST" | "COMMENT" | "PROJECT";
     targetId: number;
     reactionType: "LIKE";
   }) => api.post<void>("/reactions", data),
 
   // 리액션 취소
   removeReaction: (data: {
-    targetType: "POST" | "COMMENT";
+    targetType: "POST" | "COMMENT" | "PROJECT";
     targetId: number;
     reactionType: "LIKE";
   }) => api.delete<void>("/reactions", data),

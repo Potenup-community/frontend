@@ -6,6 +6,10 @@ import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Users, Flame } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+import { reactionApi } from "@/lib/api";
+import { toast } from "sonner";
 
 export interface ProjectCardProps {
   projectId: number;
@@ -15,7 +19,8 @@ export interface ProjectCardProps {
   trackNames?: string[];
   techStacks?: string[];
   memberCount?: number;
-  initialLikes?: number; // 초기 좋아요 수
+  likeCount?: number;
+  likedByMe?: boolean;
 }
 
 export function ProjectCard({
@@ -26,16 +31,57 @@ export function ProjectCard({
   trackNames = [],
   techStacks = [],
   memberCount,
-  initialLikes = 0,
+  likeCount = 0,
+  likedByMe = false,
 }: ProjectCardProps) {
   const router = useRouter();
-  const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(initialLikes);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const [liked, setLiked] = useState(likedByMe);
+  const [count, setCount] = useState(likeCount);
 
   // 이미지 URL에 프로토콜 추가
   const imageUrl = thumbnailImageUrl?.startsWith("http")
     ? thumbnailImageUrl
     : `http://${thumbnailImageUrl}`;
+
+  // 좋아요 Mutation
+  const likeMutation = useMutation({
+    mutationFn: async (shouldLike: boolean) => {
+      if (shouldLike) {
+        await reactionApi.addReaction({
+          targetType: "PROJECT",
+          targetId: projectId,
+          reactionType: "LIKE",
+        });
+      } else {
+        await reactionApi.removeReaction({
+          targetType: "PROJECT",
+          targetId: projectId,
+          reactionType: "LIKE",
+        });
+      }
+    },
+    onSuccess: () => {
+      // 캐시 무효화 + 자동 리페치
+      queryClient.invalidateQueries({
+        queryKey: ["project", String(projectId)],
+        refetchType: "all",
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ["projects"],
+        refetchType: "all",
+      });
+    },
+    onError: () => {
+      // 오류 시 상태 복원
+      setLiked(!liked);
+      setCount((prev) => (liked ? prev + 1 : Math.max(0, prev - 1)));
+      toast.error("좋아요 처리 중 오류가 발생했습니다.");
+    },
+  });
 
   const handleCardClick = () => {
     router.push(`/projects/${projectId}`);
@@ -44,8 +90,18 @@ export function ProjectCard({
   const handleLikeClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // 카드 클릭 이벤트 전파 방지
 
-    setLiked(!liked);
-    setLikeCount((prev) => (liked ? prev - 1 : prev + 1));
+    if (!user) {
+      toast.error("로그인이 필요합니다.");
+      return;
+    }
+
+    // Optimistic Update
+    const nextLiked = !liked;
+    setLiked(nextLiked);
+    setCount((prev) => (nextLiked ? prev + 1 : Math.max(0, prev - 1)));
+
+    // API 요청
+    likeMutation.mutate(nextLiked);
   };
 
   return (
@@ -119,7 +175,8 @@ export function ProjectCard({
         <div className="flex w-full items-center justify-between text-sm">
           <button
             onClick={handleLikeClick}
-            className="flex items-center gap-1 transition-all hover:scale-110"
+            disabled={likeMutation.isPending}
+            className="flex items-center gap-1 transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Flame
               className={`h-4 w-4 transition-all ${
@@ -133,7 +190,7 @@ export function ProjectCard({
                 liked ? "text-orange-500 font-semibold" : "text-gray-500"
               }
             >
-              {likeCount}
+              {count}
             </span>
           </button>
           <span className="text-orange-500">→</span>
