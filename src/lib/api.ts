@@ -126,11 +126,15 @@ class ApiClient {
   }
 
   // For file uploads (multipart/form-data)
-  async upload<T>(endpoint: string, formData: FormData): Promise<T> {
+  async upload<T>(
+    endpoint: string,
+    formData: FormData,
+    method: "POST" | "PUT" | "PATCH" = "POST",
+  ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
 
     const response = await fetch(url, {
-      method: "POST",
+      method,
       credentials: "include",
       body: formData,
     });
@@ -155,6 +159,19 @@ class ApiClient {
       );
     }
 
+    // Handle 201/202 Created - Location 헤더에서 ID 추출
+    if (response.status === 201 || response.status === 202) {
+      const location = response.headers.get("Location");
+      if (location) {
+        // Location: /api/v1/projects/8 에서 8 추출
+        const id = location.split("/").pop();
+        if (id) {
+          console.log("Extracted projectId from Location header:", id);
+          return { projectId: id } as T;
+        }
+      }
+    }
+
     // Handle 204 No Content or empty body
     if (response.status === 204) {
       return {} as T;
@@ -167,7 +184,9 @@ class ApiClient {
     }
 
     try {
-      return JSON.parse(text) as T;
+      const parsed = JSON.parse(text);
+      console.log("Upload response parsed:", parsed);
+      return parsed as T;
     } catch {
       console.error("Failed to parse upload response:", text);
       return {} as T;
@@ -399,14 +418,14 @@ export const commentApi = {
 export const reactionApi = {
   // 리액션 추가
   addReaction: (data: {
-    targetType: "POST" | "COMMENT";
+    targetType: "POST" | "COMMENT" | "PROJECT";
     targetId: number;
     reactionType: "LIKE";
   }) => api.post<void>("/reactions", data),
 
   // 리액션 취소
   removeReaction: (data: {
-    targetType: "POST" | "COMMENT";
+    targetType: "POST" | "COMMENT" | "PROJECT";
     targetId: number;
     reactionType: "LIKE";
   }) => api.delete<void>("/reactions", data),
