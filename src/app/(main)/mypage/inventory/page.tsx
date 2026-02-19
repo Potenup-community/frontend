@@ -196,8 +196,12 @@ function InventoryItem({
   onUnequip: () => void;
   isPending: boolean;
 }) {
+  const isExpired = item.remainingDays !== null && item.remainingDays !== undefined && item.remainingDays < 0;
+
   const remainingText =
-    item.remainingDays === null
+    isExpired
+      ? '만료'
+      : item.remainingDays === null
       ? '영구'
       : item.remainingDays !== undefined
         ? `${item.remainingDays}일 남음`
@@ -224,7 +228,9 @@ function InventoryItem({
         <div className="w-full">
           <p className="text-sm font-medium truncate">{item.name}</p>
           {remainingText && (
-            <p className="text-xs text-muted-foreground mt-0.5">{remainingText}</p>
+            <p className={cn('text-xs mt-0.5', isExpired ? 'text-destructive font-medium' : 'text-muted-foreground')}>
+              {remainingText}
+            </p>
           )}
         </div>
         <Button
@@ -232,9 +238,9 @@ function InventoryItem({
           variant={item.equipped ? 'outline' : 'default'}
           className="w-full h-8 text-xs"
           onClick={item.equipped ? onUnequip : onEquip}
-          disabled={isPending}
+          disabled={isPending || (!item.equipped && isExpired)}
         >
-          {item.equipped ? '해제' : '장착'}
+          {item.equipped ? '해제' : isExpired ? '만료' : '장착'}
         </Button>
       </CardContent>
     </Card>

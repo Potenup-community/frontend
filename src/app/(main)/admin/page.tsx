@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Shield,
@@ -59,8 +59,10 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfilePreview } from '@/contexts/ProfilePreviewContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, adminApi, studyApi, scheduleApi, shopApi, userApi, AdminTrack, Study, Schedule, ScheduleCreateRequest, ScheduleUpdateRequest, ScheduleQueryResponse, ShopItemDetailResponse, ShopItemType, UserSummary, resolveApiImageUrl } from '@/lib/api';
+import { api, adminApi, studyApi, scheduleApi, shopApi, userApi, AdminTrack, Study, Schedule, ScheduleCreateRequest, ScheduleUpdateRequest, ScheduleQueryResponse, ShopItemSummaryDto, ShopItemType, UserSummary, resolveApiImageUrl } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { formatDistanceToNow, format } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -1309,10 +1311,22 @@ const ITEM_TYPE_LABEL: Record<ShopItemType, string> = {
   BADGE: '뱃지', PET: '펫', FRAME: '프레임',
 };
 
+const ITEM_TYPE_ORDER: ShopItemType[] = ['PET', 'FRAME', 'BADGE'];
+
+type ItemFilterType = 'ALL' | ShopItemType;
+
+const ITEM_FILTER_TABS: { value: ItemFilterType; label: string }[] = [
+  { value: 'ALL', label: '전체' },
+  { value: 'PET', label: '펫' },
+  { value: 'FRAME', label: '프레임' },
+  { value: 'BADGE', label: '뱃지' },
+];
+
 function ShopManagementTab() {
   const queryClient = useQueryClient();
+  const { previewItems, setPreviewItem, clearPreviewItem, clearPreview } = useProfilePreview();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<ShopItemDetailResponse | null>(null);
+  const [filter, setFilter] = useState<ItemFilterType>('ALL');
   const [formData, setFormData] = useState({
     name: '', description: '', price: '', itemType: '' as ShopItemType | '',
     consumable: false, durationDays: '', file: null as File | null,
@@ -1323,7 +1337,18 @@ function ShopManagementTab() {
     queryFn: () => shopApi.getItems(),
   });
 
-  const allItems = groups?.flatMap(g => g.items) ?? [];
+  const sortedGroups = groups
+    ? [...groups].sort((a, b) => ITEM_TYPE_ORDER.indexOf(a.itemType) - ITEM_TYPE_ORDER.indexOf(b.itemType))
+    : [];
+
+  const filteredGroups = sortedGroups.filter(
+    (g) => filter === 'ALL' || g.itemType === filter
+  );
+
+  const allItems = filteredGroups.flatMap((g) => g.items);
+  const activeFilterLabel = ITEM_FILTER_TABS.find((tab) => tab.value === filter)?.label ?? '전체';
+
+  useEffect(() => () => clearPreview(), [clearPreview]);
 
   const resetForm = () => setFormData({
     name: '', description: '', price: '', itemType: '',
@@ -1364,48 +1389,96 @@ function ShopManagementTab() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold">상점 아이템 목록</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">상점 아이템 관리</h2>
+          <p className="text-sm text-muted-foreground">상점과 동일한 카테고리 필터로 아이템을 관리합니다.</p>
+        </div>
         <Button onClick={() => { resetForm(); setIsCreateOpen(true); }} className="bg-orange-500 hover:bg-orange-600 text-white">
           <Plus className="h-4 w-4 mr-2" />
           아이템 등록
         </Button>
       </div>
 
+      <div className="flex">
+        <nav className="flex gap-1 border-b-2 border-border">
+          {ITEM_FILTER_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setFilter(tab.value)}
+              className={cn(
+                'px-4 py-2.5 text-sm font-medium -mb-0.5 border-b-2 transition-colors',
+                filter === tab.value
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
       {isLoading ? (
-        <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20" />)}</div>
+        <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+          {[...Array(8)].map((_, i) => (
+            <Skeleton key={i} className="h-28" />
+          ))}
+        </div>
       ) : allItems.length === 0 ? (
-        <EmptyState icon={Store} title="등록된 아이템이 없습니다" description="새 아이템을 등록해주세요." />
+        <EmptyState icon={Store} title="표시할 아이템이 없습니다" description={`${activeFilterLabel} 카테고리에 등록된 아이템이 없습니다.`} />
+      ) : filter === 'ALL' ? (
+        <div className="space-y-6">
+          {filteredGroups.map((group) => {
+            if (!group.items.length) return null;
+
+            return (
+              <section key={group.itemType} className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-semibold">{ITEM_TYPE_LABEL[group.itemType]}</h3>
+                  <Badge variant="secondary">{group.items.length}</Badge>
+                </div>
+                <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+                  {group.items.map((item) => (
+                    <AdminShopItemCard
+                      key={item.id}
+                      item={item}
+                      isPreviewing={previewItems[item.itemType] === item.imageUrl}
+                      onPreview={() => {
+                        if (!item.imageUrl) return;
+                        if (previewItems[item.itemType] === item.imageUrl) {
+                          clearPreviewItem(item.itemType);
+                          return;
+                        }
+                        setPreviewItem(item.itemType, item.imageUrl);
+                      }}
+                      onHide={() => hideMutation.mutate(item.id)}
+                      isHiding={hideMutation.isPending}
+                    />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
           {allItems.map((item) => (
-            <Card key={item.id}>
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-                  {item.imageUrl ? (
-                    <img src={resolveApiImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-contain" style={{ imageRendering: 'pixelated' }} />
-                  ) : (
-                    <Package className="h-6 w-6 text-muted-foreground" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="font-medium truncate">{item.name}</p>
-                    <Badge variant="outline" className="text-xs">{ITEM_TYPE_LABEL[item.itemType]}</Badge>
-                  </div>
-                  <p className="text-sm text-primary font-semibold">{item.price.toLocaleString()} P</p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-muted-foreground"
-                  onClick={() => hideMutation.mutate(item.id)}
-                  disabled={hideMutation.isPending}
-                >
-                  <EyeOff className="h-4 w-4" />
-                </Button>
-              </CardContent>
-            </Card>
+            <AdminShopItemCard
+              key={item.id}
+              item={item}
+              isPreviewing={previewItems[item.itemType] === item.imageUrl}
+              onPreview={() => {
+                if (!item.imageUrl) return;
+                if (previewItems[item.itemType] === item.imageUrl) {
+                  clearPreviewItem(item.itemType);
+                  return;
+                }
+                setPreviewItem(item.itemType, item.imageUrl);
+              }}
+              onHide={() => hideMutation.mutate(item.id)}
+              isHiding={hideMutation.isPending}
+            />
           ))}
         </div>
       )}
@@ -1479,6 +1552,68 @@ function ShopManagementTab() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function AdminShopItemCard({
+  item,
+  isPreviewing,
+  onPreview,
+  onHide,
+  isHiding,
+}: {
+  item: ShopItemSummaryDto;
+  isPreviewing: boolean;
+  onPreview: () => void;
+  onHide: () => void;
+  isHiding: boolean;
+}) {
+  const durationText = item.durationDays == null ? '영구' : `${item.durationDays}일`;
+
+  return (
+    <Card className="border-border/80 hover:border-primary/40 transition-colors">
+      <CardContent className="p-2 h-full flex flex-col gap-1.5">
+        <div className="w-full aspect-square rounded-lg bg-muted flex items-center justify-center overflow-hidden">
+          {item.imageUrl ? (
+            <img src={resolveApiImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-contain" style={{ imageRendering: 'pixelated' }} />
+          ) : (
+            <Package className="h-5 w-5 text-muted-foreground" />
+          )}
+        </div>
+        <div className="space-y-1">
+          <p className="text-[11px] font-medium truncate">{item.name}</p>
+          <div className="flex flex-wrap items-center gap-1">
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">{ITEM_TYPE_LABEL[item.itemType]}</Badge>
+            <Badge variant={item.consumable ? 'secondary' : 'outline'} className="text-[10px] px-1.5 py-0.5">
+              {durationText}
+            </Badge>
+          </div>
+          <p className="text-[11px] text-primary font-semibold">{item.price.toLocaleString()} P</p>
+        </div>
+        <div className="mt-auto grid grid-cols-2 gap-1">
+          <Button
+            variant={isPreviewing ? 'default' : 'outline'}
+            size="sm"
+            className="h-6 px-1 text-[10px]"
+            onClick={onPreview}
+            disabled={!item.imageUrl}
+          >
+            <Eye className="h-3 w-3 mr-0.5" />
+            미리보기
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 px-1 text-[10px] text-muted-foreground hover:text-destructive"
+            onClick={onHide}
+            disabled={isHiding}
+          >
+            <EyeOff className="h-3 w-3 mr-0.5" />
+            숨김
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
