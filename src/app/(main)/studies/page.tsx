@@ -2,20 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Loader2, Users, Plus, Calendar, Filter } from 'lucide-react';
+import { Loader2, Users, Plus, Calendar } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { EquippedBadge } from '@/components/ui/EquippedBadge';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { api, Study, adminApi, scheduleApi } from '@/lib/api';
 import { BUDGET_LABELS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
@@ -115,9 +108,9 @@ export default function Studies() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="space-y-2">
         {/* 상태 탭 필터 */}
-        <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
+        <div className="flex flex-wrap items-center gap-1">
           {[
             { value: 'all', label: '전체' },
             { value: 'PENDING', label: '모집중' },
@@ -128,10 +121,10 @@ export default function Studies() {
               key={tab.value}
               onClick={() => setSelectedStatus(tab.value)}
               className={cn(
-                'px-3 py-1.5 text-sm font-medium rounded-md transition-all',
+                'px-4 py-2 rounded-lg text-sm transition-all duration-200',
                 selectedStatus === tab.value
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'text-primary font-bold bg-primary/10'
+                  : 'text-muted-foreground font-medium hover:text-primary hover:bg-primary/5'
               )}
             >
               {tab.label}
@@ -140,23 +133,33 @@ export default function Studies() {
         </div>
 
         {/* 트랙 필터 */}
-        <Select
-          value={selectedTrack.toString()}
-          onValueChange={(value) => setSelectedTrack(Number(value))}
-        >
-          <SelectTrigger className="w-[160px] h-9">
-            <Filter className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
-            <SelectValue placeholder="트랙 선택" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="0">전체 트랙</SelectItem>
-            {tracks?.map((track) => (
-              <SelectItem key={track.trackId} value={track.trackId.toString()}>
-                {track.trackName}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap items-center gap-1">
+          <button
+            onClick={() => setSelectedTrack(0)}
+            className={cn(
+              'px-4 py-2 rounded-lg text-sm transition-all duration-200',
+              selectedTrack === 0
+                ? 'text-primary font-bold bg-primary/10'
+                : 'text-muted-foreground font-medium hover:text-primary hover:bg-primary/5'
+            )}
+          >
+            전체 트랙
+          </button>
+          {tracks?.map((track) => (
+            <button
+              key={track.trackId}
+              onClick={() => setSelectedTrack(track.trackId)}
+              className={cn(
+                'px-4 py-2 rounded-lg text-sm transition-all duration-200',
+                selectedTrack === track.trackId
+                  ? 'text-primary font-bold bg-primary/10'
+                  : 'text-muted-foreground font-medium hover:text-primary hover:bg-primary/5'
+              )}
+            >
+              {track.trackName}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Schedule Banner */}
