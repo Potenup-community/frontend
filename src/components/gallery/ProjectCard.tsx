@@ -49,18 +49,31 @@ export function ProjectCard({
   // 좋아요 Mutation
   const likeMutation = useMutation({
     mutationFn: async (shouldLike: boolean) => {
-      if (shouldLike) {
-        await reactionApi.addReaction({
-          targetType: "PROJECT",
-          targetId: projectId,
-          reactionType: "LIKE",
-        });
-      } else {
-        await reactionApi.removeReaction({
-          targetType: "PROJECT",
-          targetId: projectId,
-          reactionType: "LIKE",
-        });
+      console.log(
+        "[ProjectCard] mutationFn called with shouldLike:",
+        shouldLike,
+      );
+      try {
+        if (shouldLike) {
+          console.log("[ProjectCard] Calling addReaction");
+          await reactionApi.addReaction({
+            targetType: "PROJECT",
+            targetId: projectId,
+            reactionType: "LIKE",
+          });
+          console.log("[ProjectCard] addReaction success");
+        } else {
+          console.log("[ProjectCard] Calling removeReaction");
+          await reactionApi.removeReaction({
+            targetType: "PROJECT",
+            targetId: projectId,
+            reactionType: "LIKE",
+          });
+          console.log("[ProjectCard] removeReaction success");
+        }
+      } catch (err) {
+        console.error("[ProjectCard] Mutation error:", err);
+        throw err;
       }
     },
     onSuccess: () => {
@@ -89,14 +102,17 @@ export function ProjectCard({
 
   const handleLikeClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // 카드 클릭 이벤트 전파 방지
+    console.log("[ProjectCard] Like button clicked", { projectId, liked });
 
     if (!user) {
+      console.log("[ProjectCard] User not logged in");
       toast.error("로그인이 필요합니다.");
       return;
     }
 
     // Optimistic Update
     const nextLiked = !liked;
+    console.log("[ProjectCard] Mutating with shouldLike:", nextLiked);
     setLiked(nextLiked);
     setCount((prev) => (nextLiked ? prev + 1 : Math.max(0, prev - 1)));
 

@@ -34,8 +34,8 @@ interface ProjectDetail {
   };
   createdAt: string;
   modifiedAt: string;
-  likeCount: number;
-  likedByMe: boolean;
+  reactionCount: number;
+  reactedByMe: boolean;
 }
 
 export default function ProjectDetailPage({ params }: ProjectDetailProps) {
@@ -78,8 +78,8 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
     thumbnailImageUrl: project.thumbnailImageUrl,
     techStacks: project.techStacks,
     userId: project.author.userId,
-    isLiked: project.likedByMe,
-    likeCount: project.likeCount,
+    isLiked: project.reactedByMe,
+    likeCount: project.reactionCount,
     links: {
       github: project.githubUrl,
       website: project.deployUrl,
