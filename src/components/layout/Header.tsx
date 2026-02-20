@@ -1,36 +1,43 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Bell, PenSquare, Shield } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { UserAvatar } from '@/components/ui/UserAvatar';
-import { useAuth } from '@/contexts/AuthContext';
-import { cn } from '@/lib/utils';
-import { api, UnreadCountResponse } from '@/lib/api';
-import { Logo } from './Logo';
-import { NotificationSheet } from '@/components/notifications/NotificationSheet';
-import { useQuery } from '@tanstack/react-query';
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Bell, PenSquare, Shield } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { UserAvatar } from "@/components/ui/UserAvatar";
+import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
+import { api, UnreadCountResponse } from "@/lib/api";
+import { Logo } from "./Logo";
+import { NotificationSheet } from "@/components/notifications/NotificationSheet";
+import { useQuery } from "@tanstack/react-query";
 
 const NAV_TABS = [
-  { href: '/', label: '홈', topic: null },
-  { href: '/?topic=notice', label: '공지사항', topic: 'NOTICE' },
-  { href: '/?topic=knowledge', label: '정보공유', topic: ['KNOWLEDGE', 'EMPLOYMENT_TIP'] },
-  { href: '/?topic=small_talk', label: '자유게시판', topic: 'SMALL_TALK' },
-  { href: '/studies', label: '스터디', topic: null },
+  { href: "/", label: "홈", topic: null },
+  { href: "/?topic=notice", label: "공지사항", topic: "NOTICE" },
+  {
+    href: "/?topic=knowledge",
+    label: "정보공유",
+    topic: ["KNOWLEDGE", "EMPLOYMENT_TIP"],
+  },
+  { href: "/?topic=small_talk", label: "자유게시판", topic: "SMALL_TALK" },
+  { href: "/studies", label: "스터디", topic: null },
+  { href: "/projects", label: "프로젝트", topic: null },
 ];
 
 export function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const currentTopic = searchParams.get('topic')?.toUpperCase();
+  const currentTopic = searchParams.get("topic")?.toUpperCase();
   const { user, isAuthenticated } = useAuth();
 
   const { data: unreadData } = useQuery({
-    queryKey: ['notifications', 'unread-count'],
+    queryKey: ["notifications", "unread-count"],
     queryFn: async () => {
-      const res = await api.get<UnreadCountResponse>('/notifications/unread-count');
+      const res = await api.get<UnreadCountResponse>(
+        "/notifications/unread-count",
+      );
       return res;
     },
     enabled: isAuthenticated,
@@ -40,19 +47,23 @@ export function Header() {
 
   const unreadCount = unreadData?.count || 0;
 
-  const isActive = (tab: typeof NAV_TABS[number]) => {
-    if (tab.href === '/studies') {
-      return pathname.startsWith('/studies');
+  const isActive = (tab: (typeof NAV_TABS)[number]) => {
+    if (tab.href === "/studies") {
+      return pathname.startsWith("/studies");
     }
-    
-    if (pathname !== '/') return false;
+
+    if (tab.href === "/projects") {
+      return pathname.startsWith("/projects");
+    }
+
+    if (pathname !== "/") return false;
 
     if (tab.topic === null) {
       return !currentTopic;
     }
 
     if (Array.isArray(tab.topic)) {
-      return tab.topic.includes(currentTopic || '');
+      return tab.topic.includes(currentTopic || "");
     }
 
     return currentTopic === tab.topic;
@@ -78,10 +89,10 @@ export function Header() {
                     key={tab.label}
                     href={tab.href}
                     className={cn(
-                      'relative px-4 py-5 text-sm font-medium transition-colors',
+                      "relative px-4 py-5 text-sm font-medium transition-colors",
                       active
-                        ? 'text-primary font-bold'
-                        : 'text-muted-foreground hover:text-primary'
+                        ? "text-primary font-bold"
+                        : "text-muted-foreground hover:text-primary",
                     )}
                   >
                     {tab.label}
@@ -96,9 +107,9 @@ export function Header() {
 
           {/* Right Actions */}
           <div className="flex items-center gap-2">
-            {isAuthenticated && user?.role === 'ADMIN' && (
+            {isAuthenticated && user?.role === "ADMIN" && (
               <button
-                onClick={() => router.push('/admin')}
+                onClick={() => router.push("/admin")}
                 className="hidden sm:flex items-center justify-end h-9 rounded-md px-2.5 text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-all duration-300 cursor-pointer group overflow-hidden w-10 hover:w-[110px]"
               >
                 <span className="max-w-0 overflow-hidden opacity-0 group-hover:max-w-[80px] group-hover:opacity-100 group-hover:mr-1.5 transition-all duration-300 text-sm font-medium whitespace-nowrap">
@@ -116,15 +127,15 @@ export function Header() {
                       <Bell className="h-5 w-5" />
                       {unreadCount > 0 && (
                         <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
-                          {unreadCount > 9 ? '9+' : unreadCount}
+                          {unreadCount > 9 ? "9+" : unreadCount}
                         </span>
                       )}
                     </Button>
                   }
                 />
-                
-                <Button 
-                  onClick={() => router.push('/post/write')}
+
+                <Button
+                  onClick={() => router.push("/post/write")}
                   variant="linearPrimary"
                   size="sm"
                   className="hidden sm:flex gap-2"
@@ -143,10 +154,18 @@ export function Header() {
               </>
             ) : (
               <div className="flex items-center gap-2">
-                <Button variant="linear" size="sm" onClick={() => router.push('/signin')}>
+                <Button
+                  variant="linear"
+                  size="sm"
+                  onClick={() => router.push("/signin")}
+                >
                   로그인
                 </Button>
-                <Button variant="linearPrimary" size="sm" onClick={() => router.push('/signup')}>
+                <Button
+                  variant="linearPrimary"
+                  size="sm"
+                  onClick={() => router.push("/signup")}
+                >
                   회원가입
                 </Button>
               </div>
