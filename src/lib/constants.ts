@@ -34,19 +34,19 @@ export const TOPIC_COLORS: Record<TopicType, string> = {
 
 // Study status
 export const STUDY_STATUS = {
-  PENDING: 'PENDING',
-  APPROVED: 'APPROVED',
-  CLOSED: 'CLOSED',
-  REJECTED: 'REJECTED',
+  RECRUITING: 'RECRUITING',
+  RECRUITING_CLOSED: 'RECRUITING_CLOSED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
 } as const;
 
 export type StudyStatusType = keyof typeof STUDY_STATUS;
 
 export const STUDY_STATUS_LABELS: Record<StudyStatusType, string> = {
-  PENDING: '모집중',
-  APPROVED: '승인 완료',
-  CLOSED: '모집마감',
-  REJECTED: '거절됨',
+  RECRUITING: '모집중',
+  RECRUITING_CLOSED: '모집마감',
+  IN_PROGRESS: '진행중',
+  COMPLETED: '완료',
 };
 
 // Budget types

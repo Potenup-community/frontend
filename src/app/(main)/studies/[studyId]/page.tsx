@@ -37,6 +37,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { studyApi, StudyDetail } from "@/lib/api";
 import { EquippedBadge } from "@/components/ui/EquippedBadge";
 import { BUDGET_LABELS, STUDY_STATUS_LABELS } from "@/lib/constants";
+import { getStudyStatusBadgeProps } from "@/lib/study-status";
 import { toast } from "sonner";
 import { formatDistanceToNow, format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -81,13 +82,20 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
   const queryClient = useQueryClient();
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
-  const isFull = study.currentMemberCount >= study.capacity;
+  const statusBadge = getStudyStatusBadgeProps(study);
+  const effectiveStatus = statusBadge.effectiveStatus;
   const canApply =
     !study.isLeader &&
     !study.isParticipant &&
     !study.isRecruitmentClosed &&
-    !isFull &&
-    study.status === "PENDING";
+    study.currentMemberCount < study.capacity &&
+    effectiveStatus === "RECRUITING";
+
+  const showUnavailableMessage =
+    !canApply &&
+    !study.isLeader &&
+    !study.isParticipant &&
+    (effectiveStatus === "RECRUITING" || effectiveStatus === "RECRUITING_CLOSED");
 
   // 스터디 참가
   const joinMutation = useMutation({
@@ -114,19 +122,6 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
     },
   });
 
-  const getStatusBadge = () => {
-    if (study.status === "REJECTED") {
-      return <Badge variant="destructive">거절됨</Badge>;
-    }
-    if (study.status === "APPROVED") {
-      return <Badge className="bg-blue-500 text-white">승인 완료</Badge>;
-    }
-    if (study.isRecruitmentClosed || isFull) {
-      return <Badge variant="secondary">모집 마감</Badge>;
-    }
-    return <Badge className="bg-success text-success-foreground">모집중</Badge>;
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -137,7 +132,9 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
             <h1 className="text-2xl font-bold">{study.name}</h1>
-            {getStatusBadge()}
+            <Badge variant={statusBadge.variant} className={cn(statusBadge.className)}>
+              {statusBadge.label}
+            </Badge>
           </div>
           <p className="text-muted-foreground">
             {formatDistanceToNow(new Date(study.createdAt), {
@@ -174,10 +171,32 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
           {/* Description */}
           <Card>
             <CardHeader>
-              <CardTitle>스터디 소개</CardTitle>
+              <CardTitle className="text-lg">스터디 소개</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="whitespace-pre-wrap">{study.description}</p>
+              <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{study.description}</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">주차별 계획</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-[15px]">
+              {[
+                { title: "1주차", plan: study.week1Plan },
+                { title: "2주차", plan: study.week2Plan },
+                { title: "3주차", plan: study.week3Plan },
+                { title: "4주차", plan: study.week4Plan },
+              ].map((item, index) => (
+                <div
+                  key={item.title}
+                  className={cn("space-y-1", index < 3 && "border-b pb-4")}
+                >
+                  <p className="text-[13px] font-medium text-muted-foreground">{item.title}</p>
+                  <p className="whitespace-pre-wrap leading-relaxed">{item.plan}</p>
+                </div>
+              ))}
             </CardContent>
           </Card>
 
@@ -185,12 +204,12 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
           {study.tags && study.tags.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>기술 스택 / 태그</CardTitle>
+                <CardTitle className="text-lg">기술 스택 / 태그</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
                   {study.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary">
+                    <Badge key={tag} variant="secondary" className="text-[11px]">
                       {tag}
                     </Badge>
                   ))}
@@ -203,7 +222,7 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
           {study.participants && study.participants.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>참가자 ({study.participants.length}명)</CardTitle>
+                <CardTitle className="text-lg">참가자 ({study.participants.length}명)</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -219,12 +238,11 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
                         frameSrc={participant.items?.find((i) => i.itemType === 'FRAME')?.imageUrl}
                       />
                       <div>
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-medium text-sm">{participant.name}</p>
-                          <EquippedBadge items={participant.items} className="h-[13px] w-auto" />
-                        </div>
+                        <p className="font-medium text-[13px]">
+                          {participant.name}
+                        </p>
                         {participant.trackName && (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-[11px] text-muted-foreground">
                             {participant.trackName}
                           </p>
                         )}
@@ -369,14 +387,13 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
             </div>
           )}
 
-          {!canApply &&
-            !study.isLeader &&
-            !study.isParticipant &&
-            study.status === "PENDING" && (
-              <div className="text-center text-sm text-muted-foreground py-2">
-                {isFull ? "모집이 마감되었습니다" : "현재 신청할 수 없습니다"}
-              </div>
-            )}
+          {showUnavailableMessage && (
+            <div className="text-center text-sm text-muted-foreground py-2">
+              {effectiveStatus === "RECRUITING_CLOSED"
+                ? "모집이 마감되었습니다"
+                : "현재 신청할 수 없습니다"}
+            </div>
+          )}
         </div>
       </div>
 

@@ -872,7 +872,7 @@ function StudyApprovalTab() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold">승인 대기 중인 스터디</h2>
+        <h2 className="text-lg font-semibold">진행 시작 대기 중인 스터디</h2>
         <Badge variant="secondary">{pendingStudies?.length || 0}개</Badge>
       </div>
 
@@ -882,13 +882,13 @@ function StudyApprovalTab() {
             <Skeleton key={i} className="h-32" />
           ))}
         </div>
-      ) : pendingStudies?.length === 0 ? (
-        <EmptyState
-          icon={BookOpen}
-          title="대기 중인 스터디가 없습니다"
-          description="모든 스터디 신청이 처리되었습니다."
-        />
-      ) : (
+        ) : pendingStudies?.length === 0 ? (
+          <EmptyState
+            icon={BookOpen}
+            title="대기 중인 스터디가 없습니다"
+            description="진행 시작 대기 스터디가 없습니다."
+          />
+        ) : (
         <div className="space-y-4">
           {pendingStudies?.map((study) => (
             <Card key={study.id}>
@@ -927,7 +927,7 @@ function StudyApprovalTab() {
                   <div className="flex gap-2 flex-shrink-0">
                     <Button size="sm" onClick={() => setSelectedStudy(study)}>
                       <CheckCircle className="h-4 w-4 mr-1" />
-                      승인
+                      진행 시작
                     </Button>
                   </div>
                 </div>
@@ -945,7 +945,7 @@ function StudyApprovalTab() {
           <AlertDialogHeader>
             <AlertDialogTitle>스터디 승인</AlertDialogTitle>
             <AlertDialogDescription>
-              "{selectedStudy?.name}" 스터디를 승인하시겠습니까?
+              "{selectedStudy?.name}" 스터디를 진행 시작 처리하시겠습니까?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -957,7 +957,7 @@ function StudyApprovalTab() {
               {approveMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                '승인'
+                '진행 시작'
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

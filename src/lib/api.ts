@@ -526,7 +526,7 @@ export interface Study {
   description: string;
   capacity: number;
   currentMemberCount: number;
-  status: string;
+  status: StudyStatus;
   budget: string;
   chatUrl?: string;
   refUrl?: string;
@@ -660,7 +660,11 @@ export const mapNotificationResponse = (
 
 // ==================== Study Related Types ====================
 
-export type StudyStatus = "PENDING" | "APPROVED" | "CLOSED" | "REJECTED";
+export type StudyStatus =
+  | "RECRUITING"
+  | "RECRUITING_CLOSED"
+  | "IN_PROGRESS"
+  | "COMPLETED";
 export type BudgetType = "BOOK" | "MEAL";
 export type RecruitmentStatus = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -705,6 +709,10 @@ export interface StudyDetail {
   leaderId: number;
   name: string;
   description: string;
+  week1Plan: string;
+  week2Plan: string;
+  week3Plan: string;
+  week4Plan: string;
   capacity: number;
   currentMemberCount: number;
   status: StudyStatus;
@@ -730,18 +738,26 @@ export interface StudyCreateRequest {
   budgetExplain: string;
   chatUrl: string;
   refUrl?: string;
-  tags?: string[];
+  week1Plan: string;
+  week2Plan: string;
+  week3Plan: string;
+  week4Plan: string;
+  tags: string[];
 }
 
 export interface StudyUpdateRequest {
-  name?: string;
-  description?: string;
-  capacity?: number;
-  budget?: BudgetType;
-  budgetExplain?: string;
-  chatUrl?: string;
+  name: string;
+  description: string;
+  capacity: number;
+  budget: BudgetType;
+  budgetExplain: string;
+  chatUrl: string;
   refUrl?: string;
-  tags?: string[];
+  week1Plan: string;
+  week2Plan: string;
+  week3Plan: string;
+  week4Plan: string;
+  tags: string[];
 }
 
 export interface Recruitment {
@@ -845,9 +861,9 @@ export const studyApi = {
   getMyRecruitments: () =>
     api.get<{ content: Recruitment[] }>("/users/me/recruitments"),
 
-  // 스터디 승인 (관리자)
+  // 스터디 진행 시작 (관리자)
   approveStudy: (studyId: number) =>
-    api.patch<void>(`/studies/${studyId}/approve`),
+    api.patch<void>(`/studies/${studyId}/approve-to-start`),
 };
 
 // ==================== Schedule API Functions ====================
@@ -1103,11 +1119,11 @@ export const adminApi = {
   // 트랙 삭제
   deleteTrack: (id: number) => api.delete<void>(`/admin/tracks/${id}`),
 
-  // 스터디 목록 조회 (승인 대기)
+  // 스터디 목록 조회 (진행 시작 대기)
   getPendingStudies: (params?: { page?: number; size?: number }) =>
     api.get<PaginatedResponse<Study>>("/studies", {
       ...params,
-      status: "PENDING",
+      status: "RECRUITING_CLOSED",
     }),
 
   // 포인트 직접 지급

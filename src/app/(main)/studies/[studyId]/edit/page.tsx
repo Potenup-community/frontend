@@ -33,6 +33,10 @@ export default function EditStudyPage() {
   const [formData, setFormData] = useState<StudyUpdateRequest>({
     name: '',
     description: '',
+    week1Plan: '',
+    week2Plan: '',
+    week3Plan: '',
+    week4Plan: '',
     capacity: 5,
     budget: 'MEAL',
     budgetExplain: '',
@@ -52,13 +56,17 @@ export default function EditStudyPage() {
   // 스터디 데이터로 폼 초기화
   useEffect(() => {
     if (study) {
-      setFormData({
-        name: study.name,
-        description: study.description,
-        capacity: study.capacity,
-        budget: study.budget,
-        budgetExplain: study.budgetExplain || '',
-        chatUrl: study.chatUrl || '',
+        setFormData({
+          name: study.name,
+          description: study.description,
+          week1Plan: study.week1Plan,
+          week2Plan: study.week2Plan,
+          week3Plan: study.week3Plan,
+          week4Plan: study.week4Plan,
+          capacity: study.capacity,
+          budget: study.budget,
+          budgetExplain: study.budgetExplain || '',
+          chatUrl: study.chatUrl || '',
         refUrl: study.refUrl || '',
         tags: study.tags || [],
       });
@@ -80,7 +88,7 @@ export default function EditStudyPage() {
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.name?.trim()) {
+    if (!formData.name.trim()) {
       newErrors.name = '스터디 이름을 입력해주세요.';
     } else if (formData.name.length < VALIDATION.STUDY_NAME_MIN) {
       newErrors.name = `스터디 이름은 최소 ${VALIDATION.STUDY_NAME_MIN}자 이상이어야 합니다.`;
@@ -88,21 +96,37 @@ export default function EditStudyPage() {
       newErrors.name = `스터디 이름은 최대 ${VALIDATION.STUDY_NAME_MAX}자까지 가능합니다.`;
     }
 
-    if (!formData.description?.trim()) {
+    if (!formData.description.trim()) {
       newErrors.description = '스터디 설명을 입력해주세요.';
     } else if (formData.description.length > VALIDATION.STUDY_DESC_MAX) {
       newErrors.description = `스터디 설명은 최대 ${VALIDATION.STUDY_DESC_MAX}자까지 가능합니다.`;
     }
 
-    if (formData.capacity && formData.capacity < VALIDATION.STUDY_CAPACITY_MIN) {
+    if (!formData.week1Plan.trim()) {
+      newErrors.week1Plan = '1주차 계획을 입력해주세요.';
+    }
+
+    if (!formData.week2Plan.trim()) {
+      newErrors.week2Plan = '2주차 계획을 입력해주세요.';
+    }
+
+    if (!formData.week3Plan.trim()) {
+      newErrors.week3Plan = '3주차 계획을 입력해주세요.';
+    }
+
+    if (!formData.week4Plan.trim()) {
+      newErrors.week4Plan = '4주차 계획을 입력해주세요.';
+    }
+
+    if (formData.capacity < VALIDATION.STUDY_CAPACITY_MIN) {
       newErrors.capacity = `최소 ${VALIDATION.STUDY_CAPACITY_MIN}명 이상이어야 합니다.`;
     }
 
-    if (!formData.budgetExplain?.trim()) {
+    if (!formData.budgetExplain.trim()) {
       newErrors.budgetExplain = '비용 설명을 입력해주세요.';
     }
 
-    if (!formData.chatUrl?.trim()) {
+    if (!formData.chatUrl.trim()) {
       newErrors.chatUrl = '오픈 채팅방 URL을 입력해주세요.';
     } else if (!isValidUrl(formData.chatUrl)) {
       newErrors.chatUrl = '올바른 URL 형식이 아닙니다.';
@@ -306,6 +330,69 @@ export default function EditStudyPage() {
                 />
                 {errors.budgetExplain && (
                   <p className="text-sm text-destructive">{errors.budgetExplain}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Weekly Plans */}
+            <div className="space-y-4">
+              <Label>
+                주차별 계획 <span className="text-destructive">*</span>
+              </Label>
+
+              <div className="space-y-2">
+                <Label htmlFor="week1Plan">1주차 계획</Label>
+                <Textarea
+                  id="week1Plan"
+                  value={formData.week1Plan}
+                  onChange={(e) => setFormData({ ...formData, week1Plan: e.target.value })}
+                  placeholder="1주차에 진행할 내용을 입력해주세요"
+                  rows={3}
+                />
+                {errors.week1Plan && (
+                  <p className="text-sm text-destructive">{errors.week1Plan}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="week2Plan">2주차 계획</Label>
+                <Textarea
+                  id="week2Plan"
+                  value={formData.week2Plan}
+                  onChange={(e) => setFormData({ ...formData, week2Plan: e.target.value })}
+                  placeholder="2주차에 진행할 내용을 입력해주세요"
+                  rows={3}
+                />
+                {errors.week2Plan && (
+                  <p className="text-sm text-destructive">{errors.week2Plan}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="week3Plan">3주차 계획</Label>
+                <Textarea
+                  id="week3Plan"
+                  value={formData.week3Plan}
+                  onChange={(e) => setFormData({ ...formData, week3Plan: e.target.value })}
+                  placeholder="3주차에 진행할 내용을 입력해주세요"
+                  rows={3}
+                />
+                {errors.week3Plan && (
+                  <p className="text-sm text-destructive">{errors.week3Plan}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="week4Plan">4주차 계획</Label>
+                <Textarea
+                  id="week4Plan"
+                  value={formData.week4Plan}
+                  onChange={(e) => setFormData({ ...formData, week4Plan: e.target.value })}
+                  placeholder="4주차에 진행할 내용을 입력해주세요"
+                  rows={3}
+                />
+                {errors.week4Plan && (
+                  <p className="text-sm text-destructive">{errors.week4Plan}</p>
                 )}
               </div>
             </div>
