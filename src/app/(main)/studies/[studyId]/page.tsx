@@ -35,6 +35,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { studyApi, StudyDetail } from "@/lib/api";
+import { EquippedBadge } from "@/components/ui/EquippedBadge";
 import { BUDGET_LABELS, STUDY_STATUS_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
 import { formatDistanceToNow, format } from "date-fns";
@@ -215,11 +216,13 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
                         src={participant.profileImageUrl}
                         name={participant.name}
                         className="h-9 w-9"
+                        frameSrc={participant.items?.find((i) => i.itemType === 'FRAME')?.imageUrl}
                       />
                       <div>
-                        <p className="font-medium text-sm">
-                          {participant.name}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium text-sm">{participant.name}</p>
+                          <EquippedBadge items={participant.items} className="h-[13px] w-auto" />
+                        </div>
                         {participant.trackName && (
                           <p className="text-xs text-muted-foreground">
                             {participant.trackName}
@@ -247,9 +250,13 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
                   src={study.leader?.profileImageUrl}
                   name={study.leader?.name || ""}
                   className="h-12 w-12"
+                  frameSrc={study.leader?.items?.find((i) => i.itemType === 'FRAME')?.imageUrl}
                 />
                 <div>
-                  <p className="font-medium">{study.leader?.name}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-medium">{study.leader?.name}</p>
+                    <EquippedBadge items={study.leader?.items} className="h-[14px] w-auto" />
+                  </div>
                   {study.leader?.trackName && (
                     <p className="text-sm text-muted-foreground">
                       {study.leader.trackName}

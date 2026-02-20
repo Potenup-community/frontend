@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Shield,
@@ -18,6 +18,11 @@ import {
   Trash2,
   Phone,
   Filter,
+  Store,
+  Coins,
+  Eye,
+  EyeOff,
+  Package,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -54,8 +59,10 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfilePreview } from '@/contexts/ProfilePreviewContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, adminApi, studyApi, scheduleApi, AdminTrack, Study, Schedule, ScheduleCreateRequest, ScheduleUpdateRequest, ScheduleQueryResponse } from '@/lib/api';
+import { api, adminApi, studyApi, scheduleApi, shopApi, userApi, AdminTrack, Study, Schedule, ScheduleCreateRequest, ScheduleUpdateRequest, ScheduleQueryResponse, ShopItemSummaryDto, ShopItemType, UserSummary, resolveApiImageUrl } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { formatDistanceToNow, format } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -122,20 +129,24 @@ function AdminContent() {
             <Shield className="h-6 w-6 text-primary" />
             관리자 페이지
           </h1>
-          <p className="text-muted-foreground">유저, 트랙, 스터디 관리</p>
+          <p className="text-muted-foreground">유저, 트랙, 스터디, 상점 관리</p>
         </div>
       </div>
 
       {/* Main Tabs */}
       <Tabs value={mainTab} onValueChange={setMainTab}>
-        <TabsList className="w-full grid grid-cols-2">
+        <TabsList className="w-full grid grid-cols-3">
           <TabsTrigger value="user-track" className="gap-2">
             <Users className="h-4 w-4" />
-            유저 / 트랙 관리
+            유저 / 트랙
           </TabsTrigger>
           <TabsTrigger value="study" className="gap-2">
             <BookOpen className="h-4 w-4" />
-            스터디 관리
+            스터디
+          </TabsTrigger>
+          <TabsTrigger value="shop" className="gap-2">
+            <Store className="h-4 w-4" />
+            상점
           </TabsTrigger>
         </TabsList>
 
@@ -177,6 +188,27 @@ function AdminContent() {
             </TabsContent>
             <TabsContent value="schedules" className="mt-4">
               <ScheduleManagementTab />
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+
+        <TabsContent value="shop" className="mt-6">
+          <Tabs defaultValue="items">
+            <TabsList>
+              <TabsTrigger value="items" className="gap-2">
+                <Store className="h-4 w-4" />
+                아이템 관리
+              </TabsTrigger>
+              <TabsTrigger value="points" className="gap-2">
+                <Coins className="h-4 w-4" />
+                포인트 지급
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="items" className="mt-4">
+              <ShopManagementTab />
+            </TabsContent>
+            <TabsContent value="points" className="mt-4">
+              <PointGiveTab />
             </TabsContent>
           </Tabs>
         </TabsContent>
@@ -630,7 +662,7 @@ function TrackManagementTab() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold">트랙 목록</h2>
-        <Button onClick={() => setIsCreateOpen(true)}>
+        <Button onClick={() => setIsCreateOpen(true)} className="bg-orange-500 hover:bg-orange-600 text-white">
           <Plus className="h-4 w-4 mr-2" />
           트랙 추가
         </Button>
@@ -1084,7 +1116,7 @@ function ScheduleManagementTab() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => { resetForm(); setIsCreateOpen(true); }}>
+          <Button onClick={() => { resetForm(); setIsCreateOpen(true); }} className="bg-orange-500 hover:bg-orange-600 text-white">
             <Plus className="h-4 w-4 mr-2" />
             일정 추가
           </Button>
@@ -1270,6 +1302,432 @@ function ScheduleForm({
           onChange={(e) => setFormData({ ...formData, studyEndDate: e.target.value })}
         />
       </div>
+    </div>
+  );
+}
+
+// ==================== Shop Management Tab ====================
+const ITEM_TYPE_LABEL: Record<ShopItemType, string> = {
+  BADGE: '뱃지', PET: '펫', FRAME: '프레임',
+};
+
+const ITEM_TYPE_ORDER: ShopItemType[] = ['PET', 'FRAME', 'BADGE'];
+
+type ItemFilterType = 'ALL' | ShopItemType;
+
+const ITEM_FILTER_TABS: { value: ItemFilterType; label: string }[] = [
+  { value: 'ALL', label: '전체' },
+  { value: 'PET', label: '펫' },
+  { value: 'FRAME', label: '프레임' },
+  { value: 'BADGE', label: '뱃지' },
+];
+
+function ShopManagementTab() {
+  const queryClient = useQueryClient();
+  const { previewItems, setPreviewItem, clearPreviewItem, clearPreview } = useProfilePreview();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [filter, setFilter] = useState<ItemFilterType>('ALL');
+  const [formData, setFormData] = useState({
+    name: '', description: '', price: '', itemType: '' as ShopItemType | '',
+    consumable: false, durationDays: '', file: null as File | null,
+  });
+
+  const { data: groups, isLoading } = useQuery({
+    queryKey: ['shop', 'items'],
+    queryFn: () => shopApi.getItems(),
+  });
+
+  const sortedGroups = groups
+    ? [...groups].sort((a, b) => ITEM_TYPE_ORDER.indexOf(a.itemType) - ITEM_TYPE_ORDER.indexOf(b.itemType))
+    : [];
+
+  const filteredGroups = sortedGroups.filter(
+    (g) => filter === 'ALL' || g.itemType === filter
+  );
+
+  const allItems = filteredGroups.flatMap((g) => g.items);
+  const activeFilterLabel = ITEM_FILTER_TABS.find((tab) => tab.value === filter)?.label ?? '전체';
+
+  useEffect(() => () => clearPreview(), [clearPreview]);
+
+  const resetForm = () => setFormData({
+    name: '', description: '', price: '', itemType: '',
+    consumable: false, durationDays: '', file: null,
+  });
+
+  const buildFormData = () => {
+    const fd = new FormData();
+    fd.append('name', formData.name);
+    fd.append('description', formData.description);
+    fd.append('price', formData.price);
+    fd.append('itemType', formData.itemType);
+    fd.append('consumable', String(formData.consumable));
+    if (formData.durationDays) fd.append('durationDays', formData.durationDays);
+    if (formData.file) fd.append('file', formData.file);
+    return fd;
+  };
+
+  const createMutation = useMutation({
+    mutationFn: () => adminApi.createShopItem(buildFormData()),
+    onSuccess: () => {
+      toast.success('아이템이 등록되었습니다.');
+      queryClient.invalidateQueries({ queryKey: ['shop', 'items'] });
+      setIsCreateOpen(false);
+      resetForm();
+    },
+    onError: () => toast.error('아이템 등록에 실패했습니다.'),
+  });
+
+  const hideMutation = useMutation({
+    mutationFn: (itemId: number) => adminApi.hideShopItem(itemId),
+    onSuccess: () => {
+      toast.success('아이템이 숨김 처리되었습니다.');
+      queryClient.invalidateQueries({ queryKey: ['shop', 'items'] });
+    },
+    onError: () => toast.error('처리에 실패했습니다.'),
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">상점 아이템 관리</h2>
+          <p className="text-sm text-muted-foreground">상점과 동일한 카테고리 필터로 아이템을 관리합니다.</p>
+        </div>
+        <Button onClick={() => { resetForm(); setIsCreateOpen(true); }} className="bg-orange-500 hover:bg-orange-600 text-white">
+          <Plus className="h-4 w-4 mr-2" />
+          아이템 등록
+        </Button>
+      </div>
+
+      <div className="flex">
+        <nav className="flex gap-1 border-b-2 border-border">
+          {ITEM_FILTER_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setFilter(tab.value)}
+              className={cn(
+                'px-4 py-2.5 text-sm font-medium -mb-0.5 border-b-2 transition-colors',
+                filter === tab.value
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+          {[...Array(8)].map((_, i) => (
+            <Skeleton key={i} className="h-28" />
+          ))}
+        </div>
+      ) : allItems.length === 0 ? (
+        <EmptyState icon={Store} title="표시할 아이템이 없습니다" description={`${activeFilterLabel} 카테고리에 등록된 아이템이 없습니다.`} />
+      ) : filter === 'ALL' ? (
+        <div className="space-y-6">
+          {filteredGroups.map((group) => {
+            if (!group.items.length) return null;
+
+            return (
+              <section key={group.itemType} className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-semibold">{ITEM_TYPE_LABEL[group.itemType]}</h3>
+                  <Badge variant="secondary">{group.items.length}</Badge>
+                </div>
+                <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+                  {group.items.map((item) => (
+                    <AdminShopItemCard
+                      key={item.id}
+                      item={item}
+                      isPreviewing={previewItems[item.itemType] === item.imageUrl}
+                      onPreview={() => {
+                        if (!item.imageUrl) return;
+                        if (previewItems[item.itemType] === item.imageUrl) {
+                          clearPreviewItem(item.itemType);
+                          return;
+                        }
+                        setPreviewItem(item.itemType, item.imageUrl);
+                      }}
+                      onHide={() => hideMutation.mutate(item.id)}
+                      isHiding={hideMutation.isPending}
+                    />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+          {allItems.map((item) => (
+            <AdminShopItemCard
+              key={item.id}
+              item={item}
+              isPreviewing={previewItems[item.itemType] === item.imageUrl}
+              onPreview={() => {
+                if (!item.imageUrl) return;
+                if (previewItems[item.itemType] === item.imageUrl) {
+                  clearPreviewItem(item.itemType);
+                  return;
+                }
+                setPreviewItem(item.itemType, item.imageUrl);
+              }}
+              onHide={() => hideMutation.mutate(item.id)}
+              isHiding={hideMutation.isPending}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* 아이템 등록 다이얼로그 */}
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>아이템 등록</DialogTitle>
+            <DialogDescription>새 상점 아이템을 등록합니다.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>이름</Label>
+              <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="아이템 이름" />
+            </div>
+            <div className="space-y-2">
+              <Label>설명</Label>
+              <Input value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="아이템 설명" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>가격 (P)</Label>
+                <Input type="number" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} placeholder="100" />
+              </div>
+              <div className="space-y-2">
+                <Label>타입</Label>
+                <Select value={formData.itemType} onValueChange={(v) => setFormData({ ...formData, itemType: v as ShopItemType })}>
+                  <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PET">펫</SelectItem>
+                    <SelectItem value="FRAME">프레임</SelectItem>
+                    <SelectItem value="BADGE">뱃지</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="consumable"
+                checked={formData.consumable}
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, consumable: !!checked, durationDays: checked ? formData.durationDays : '' })
+                }
+              />
+              <Label htmlFor="consumable" className="cursor-pointer">기간제 아이템</Label>
+            </div>
+            {formData.consumable && (
+              <div className="space-y-2">
+                <Label>사용 가능 기간 (일)</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={formData.durationDays}
+                  onChange={(e) => setFormData({ ...formData, durationDays: e.target.value })}
+                  placeholder="예: 30"
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>이미지 파일</Label>
+              <Input type="file" accept="image/*,.gif" onChange={(e) => setFormData({ ...formData, file: e.target.files?.[0] ?? null })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>취소</Button>
+            <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending || !formData.name || !formData.price || !formData.itemType}>
+              {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : '등록'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function AdminShopItemCard({
+  item,
+  isPreviewing,
+  onPreview,
+  onHide,
+  isHiding,
+}: {
+  item: ShopItemSummaryDto;
+  isPreviewing: boolean;
+  onPreview: () => void;
+  onHide: () => void;
+  isHiding: boolean;
+}) {
+  const durationText = item.durationDays == null ? '영구' : `${item.durationDays}일`;
+
+  return (
+    <Card className="border-border/80 hover:border-primary/40 transition-colors">
+      <CardContent className="p-2 h-full flex flex-col gap-1.5">
+        <div className="w-full aspect-square rounded-lg bg-muted flex items-center justify-center overflow-hidden">
+          {item.imageUrl ? (
+            <img src={resolveApiImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-contain" style={{ imageRendering: 'pixelated' }} />
+          ) : (
+            <Package className="h-5 w-5 text-muted-foreground" />
+          )}
+        </div>
+        <div className="space-y-1">
+          <p className="text-[11px] font-medium truncate">{item.name}</p>
+          <div className="flex flex-wrap items-center gap-1">
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">{ITEM_TYPE_LABEL[item.itemType]}</Badge>
+            <Badge variant={item.consumable ? 'secondary' : 'outline'} className="text-[10px] px-1.5 py-0.5">
+              {durationText}
+            </Badge>
+          </div>
+          <p className="text-[11px] text-primary font-semibold">{item.price.toLocaleString()} P</p>
+        </div>
+        <div className="mt-auto grid grid-cols-2 gap-1">
+          <Button
+            variant={isPreviewing ? 'default' : 'outline'}
+            size="sm"
+            className="h-6 px-1 text-[10px]"
+            onClick={onPreview}
+            disabled={!item.imageUrl}
+          >
+            <Eye className="h-3 w-3 mr-0.5" />
+            미리보기
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 px-1 text-[10px] text-muted-foreground hover:text-destructive"
+            onClick={onHide}
+            disabled={isHiding}
+          >
+            <EyeOff className="h-3 w-3 mr-0.5" />
+            숨김
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ==================== Point Give Tab ====================
+function PointGiveTab() {
+  const [query, setQuery] = useState('');
+  const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
+  const [amount, setAmount] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const { data: users } = useQuery({
+    queryKey: ['mention-users'],
+    queryFn: () => userApi.getMentionUsers({ size: 100 }),
+    staleTime: 60 * 1000,
+  });
+
+  const filtered = (Array.isArray(users) ? users : []).filter(
+    (u) => u.name.toLowerCase().includes(query.toLowerCase())
+  );
+
+  const giveMutation = useMutation({
+    mutationFn: () => adminApi.givePoints({ userId: selectedUser!.userId, amount: Number(amount) }),
+    onSuccess: () => {
+      toast.success(`${selectedUser?.name}님께 ${Number(amount).toLocaleString()}P가 지급되었습니다.`);
+      setSelectedUser(null);
+      setQuery('');
+      setAmount('');
+    },
+    onError: () => toast.error('포인트 지급에 실패했습니다.'),
+  });
+
+  return (
+    <div className="max-w-md space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold mb-1">포인트 직접 지급</h2>
+        <p className="text-sm text-muted-foreground">유저를 검색한 후 포인트를 지급합니다.</p>
+      </div>
+      <Card>
+        <CardContent className="p-6 space-y-4">
+          {/* 유저 검색 */}
+          <div className="space-y-2">
+            <Label>유저 검색</Label>
+            {selectedUser ? (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-md border border-primary bg-primary/5">
+                <UserAvatar src={selectedUser.profileImageUrl} name={selectedUser.name} className="h-6 w-6" />
+                <span className="text-sm font-medium flex-1">{selectedUser.name}</span>
+                {selectedUser.trackName && (
+                  <span className="text-xs text-muted-foreground">{selectedUser.trackName}</span>
+                )}
+                <button
+                  onClick={() => { setSelectedUser(null); setQuery(''); }}
+                  className="text-muted-foreground hover:text-foreground ml-1"
+                >
+                  <XCircle className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                <Input
+                  value={query}
+                  onChange={(e) => { setQuery(e.target.value); setShowDropdown(true); }}
+                  onFocus={() => setShowDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+                  placeholder="이름으로 검색..."
+                />
+                {showDropdown && query && filtered.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border border-border rounded-md shadow-md overflow-hidden max-h-48 overflow-y-auto">
+                    {filtered.map((u) => (
+                      <button
+                        key={u.userId}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted text-left transition-colors"
+                        onMouseDown={() => { setSelectedUser(u); setQuery(u.name); setShowDropdown(false); }}
+                      >
+                        <UserAvatar src={u.profileImageUrl} name={u.name} className="h-7 w-7" />
+                        <div>
+                          <p className="text-sm font-medium">{u.name}</p>
+                          {u.trackName && <p className="text-xs text-muted-foreground">{u.trackName}</p>}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 포인트 입력 */}
+          <div className="space-y-2">
+            <Label>지급 포인트</Label>
+            <Input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="포인트 수량 입력"
+              disabled={!selectedUser}
+            />
+          </div>
+
+          <Button
+            className="w-full"
+            onClick={() => giveMutation.mutate()}
+            disabled={giveMutation.isPending || !selectedUser || !amount || Number(amount) <= 0}
+          >
+            {giveMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <Coins className="h-4 w-4 mr-2" />
+                포인트 지급
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

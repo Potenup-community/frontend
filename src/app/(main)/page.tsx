@@ -63,6 +63,7 @@ function IndexContent() {
       isReacted: item.reactions.some((r: any) => r.reactedByMe),
       createdAt: item.wroteAt,
       highlightType: item.highlightType,
+      items: item.items || item.writerItems || item.equippedItems || [],
     }));
 
     return {

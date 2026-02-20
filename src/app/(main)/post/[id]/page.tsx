@@ -34,6 +34,7 @@ import { ko } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { postApi, commentApi, reactionApi, userApi, Post, Comment, UserSummary } from '@/lib/api';
+import { EquippedBadge } from '@/components/ui/EquippedBadge';
 import { API_BASE_URL } from '@/lib/constants';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -114,6 +115,7 @@ export default function PostDetail() {
         highlightType: res.highlightType,
         previousPost: res.previousPost,
         nextPost: res.nextPost,
+        items: res.items || [],
       } as Post & { previousPost?: any; nextPost?: any };
     },
     enabled: !!id,
@@ -142,6 +144,7 @@ export default function PostDetail() {
         updatedAt: c.createdAt,
         mentionedUsers: c.mentionedUsers,
         replies: c.replies?.map(mapComment),
+        items: c.items || [],
       });
       return res.contents.map(mapComment);
     },
@@ -248,9 +251,17 @@ export default function PostDetail() {
           {/* Author & Meta */}
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-3">
-              <UserAvatar src={post.author.profileImageUrl} name={post.author.name} className="h-12 w-12" />
+              <UserAvatar
+                src={post.author.profileImageUrl}
+                name={post.author.name}
+                className="h-12 w-12"
+                frameSrc={post.items?.find((i) => i.itemType === 'FRAME')?.imageUrl}
+              />
               <div>
-                <p className="font-medium">{post.author.name}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="font-medium">{post.author.name}</p>
+                  <EquippedBadge items={post.items} className="h-[15px] w-auto" />
+                </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   {post.author.trackName && <span>{post.author.trackName}</span>}
                   {post.author.trackName && <span>·</span>}
@@ -537,13 +548,20 @@ function CommentItem({ comment, postId, currentUserId, depth = 0 }: {
 
   return (
     <div className={cn('flex gap-3', comment.isDeleted && 'opacity-60')}>
-      <UserAvatar src={comment.author.profileImageUrl} name={comment.author.name} className="h-9 w-9 flex-shrink-0" />
+      <UserAvatar
+        src={comment.author.profileImageUrl}
+        name={comment.author.name}
+        className="h-9 w-9 flex-shrink-0"
+        frameSrc={comment.items?.find((i) => i.itemType === 'FRAME')?.imageUrl}
+        frameTransform="translate(0.5%, -26%) scale(1.4)"
+      />
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="font-medium text-sm">
               {comment.author.trackName ? `[${comment.author.trackName}] ` : ''}{comment.author.name}
             </span>
+            <EquippedBadge items={comment.items} className="h-[13px] w-auto" />
             <span className="text-xs text-muted-foreground">{timeAgo}</span>
           </div>
           {!comment.isDeleted && isAuthor && (

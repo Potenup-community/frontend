@@ -3,7 +3,7 @@
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { Settings, FileText, MessageCircle, Heart, LogOut, Users } from 'lucide-react';
+import { Settings, FileText, MessageCircle, Heart, LogOut, Users, Coins, Package } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/ui/UserAvatar';
@@ -23,6 +23,8 @@ export default function MyPageLayout({ children }: { children: React.ReactNode }
     { value: 'comment', label: '내 댓글', icon: MessageCircle, href: '/mypage/comment' },
     { value: 'like', label: '좋아요', icon: Heart, href: '/mypage/like' },
     { value: 'study', label: '스터디 신청', icon: Users, href: '/mypage/study' },
+    { value: 'points', label: '포인트', icon: Coins, href: '/mypage/points' },
+    { value: 'inventory', label: '인벤토리', icon: Package, href: '/mypage/inventory' },
   ];
 
   const currentTab = pathname?.split('/')[2] || 'post';

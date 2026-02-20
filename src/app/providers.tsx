@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ProfilePreviewProvider } from "@/contexts/ProfilePreviewContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useState } from "react";
 import ReactGoogleProvider from "@/providers/ReactGoogleProvider";
@@ -21,9 +22,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <ReactGoogleProvider>
         <AuthProvider>
-          <TooltipProvider>
-            {children}
-          </TooltipProvider>
+          <ProfilePreviewProvider>
+            <TooltipProvider>
+              {children}
+            </TooltipProvider>
+          </ProfilePreviewProvider>
         </AuthProvider>
       </ReactGoogleProvider>
     </QueryClientProvider>
