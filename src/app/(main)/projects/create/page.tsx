@@ -321,12 +321,11 @@ export default function ProjectCreatePage() {
 
     try {
       const filteredMembers = members
+        .filter((member) => member.userId && member.position.trim())
         .map((member) => ({
           userId: member.userId,
-          trackId: member.trackId,
           position: member.position.trim(),
-        }))
-        .filter((member) => member.userId && member.trackId && member.position);
+        }));
 
       const payload = {
         title,
@@ -530,7 +529,21 @@ export default function ProjectCreatePage() {
               type="file"
               accept="image/*"
               onChange={(event) => {
-                setThumbnail(event.target.files?.[0] ?? null);
+                const file = event.target.files?.[0] ?? null;
+                if (file) {
+                  const maxSize = 5 * 1024 * 1024; // 5MB
+                  if (file.size > maxSize) {
+                    setFieldError(
+                      "thumbnailImage",
+                      "이미지 크기는 5M 이하로 업로드해주세요.",
+                    );
+                    setThumbnail(null);
+                    event.target.value = "";
+                    return;
+                  }
+                  setFieldError("thumbnailImage", null);
+                }
+                setThumbnail(file);
                 if (touchedFields.thumbnailImage) {
                   setTimeout(() => validateField("thumbnailImage"), 0);
                 }
@@ -539,6 +552,9 @@ export default function ProjectCreatePage() {
               onBlur={() => markTouched("thumbnailImage")}
               required
             />
+            <p className="mt-1 text-xs text-muted-foreground">
+              최대 5M까지 업로드 가능합니다
+            </p>
             {shouldShowError("thumbnailImage") && (
               <p className="mt-1 text-xs text-red-600">
                 {fieldErrors.thumbnailImage}

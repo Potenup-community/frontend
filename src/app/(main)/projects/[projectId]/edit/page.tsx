@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,6 +38,7 @@ export default function ProjectEditPage() {
   const params = useParams();
   const projectId = params?.projectId as string;
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, isLoading: authLoading } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -63,9 +64,30 @@ export default function ProjectEditPage() {
   );
 
   // Fetch existing project data
+  interface ProjectDetailResponse {
+    projectId: number;
+    title: string;
+    description: string;
+    githubUrl: string;
+    deployUrl?: string;
+    thumbnailImageUrl: string;
+    techStacks: string[];
+    members: Array<{
+      userId: number;
+      name: string;
+      profileImageUrl: string;
+      trackName: string;
+      position: string;
+    }>;
+    author: {
+      userId: number;
+      name: string;
+    };
+  }
+
   const { data: project, isLoading: isLoadingProject } = useQuery({
     queryKey: ["project", projectId],
-    queryFn: () => api.get<any>(`/projects/${projectId}`),
+    queryFn: () => api.get<ProjectDetailResponse>(`/projects/${projectId}`),
   });
 
   // Fetch available tracks
@@ -90,10 +112,50 @@ export default function ProjectEditPage() {
     return match ? match.trackId : null;
   };
 
+  // localStorage 키
+  const DRAFT_KEY = `project-edit-draft-${projectId}`;
+
+  // localStorage에 폼 데이터 저장
+  const saveDraft = () => {
+    const draft = {
+      title,
+      description,
+      githubPath,
+      deployUrl,
+      techStacks,
+      members,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  };
+
+  // localStorage에서 폼 데이터 복원
+  const loadDraft = () => {
+    const saved = localStorage.getItem(DRAFT_KEY);
+    if (!saved) return null;
+    try {
+      const draft = JSON.parse(saved);
+      // 24시간 이내 데이터만 복원
+      if (Date.now() - draft.timestamp < 24 * 60 * 60 * 1000) {
+        return draft;
+      }
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      localStorage.removeItem(DRAFT_KEY);
+    }
+    return null;
+  };
+
+  // localStorage 클리어
+  const clearDraft = () => {
+    localStorage.removeItem(DRAFT_KEY);
+  };
+
   // 권한 체크
   useEffect(() => {
     if (project && user) {
-      const canEdit = user.id === project.userId || user.role === "ADMIN";
+      const canEdit =
+        user.id === project.author.userId || user.role === "ADMIN";
       if (!canEdit) {
         router.push(`/projects/${projectId}`);
       }
@@ -102,46 +164,92 @@ export default function ProjectEditPage() {
 
   // Load existing project data into form
   useEffect(() => {
-    if (project && !isDataLoaded) {
-      setTitle(project.projectName || "");
-      setDescription(project.description || "");
+    if (project && !isDataLoaded && tracks.length > 0) {
+      // 먼저 localStorage에서 임시 저장된 내용 확인
+      const draft = loadDraft();
 
-      // GitHub URL에서 경로만 추출
-      if (project.links?.github) {
-        const path = project.links.github.replace(
-          /^https?:\/\/github\.com\//i,
-          "",
-        );
-        setGithubPath(path);
+      if (draft) {
+        // 임시 저장 내용이 있으면 복원
+        setTitle(draft.title || "");
+        setDescription(draft.description || "");
+        setGithubPath(draft.githubPath || "");
+        setDeployUrl(draft.deployUrl || "");
+        setTechStacks(draft.techStacks || []);
+        setMembers(draft.members || []);
+      } else {
+        // 임시 저장 내용이 없으면 서버 데이터 사용
+        setTitle(project.title || "");
+        setDescription(project.description || "");
+
+        // GitHub URL에서 경로만 추출
+        if (project.githubUrl) {
+          const path = project.githubUrl.replace(
+            /^https?:\/\/github\.com\//i,
+            "",
+          );
+          setGithubPath(path);
+        }
+
+        setDeployUrl(project.deployUrl || "");
+        setTechStacks(project.techStacks || []);
+
+        // 멤버 데이터 로드
+        if (project.members && Array.isArray(project.members)) {
+          const loadedMembers = project.members.map((member) => {
+            const resolvedTrackId =
+              tracks.find((track) => track.trackName === member.trackName)
+                ?.trackId ?? null;
+
+            return {
+              id: createMemberId(),
+              userId: member.userId,
+              name: member.name || "",
+              trackId: resolvedTrackId,
+              position: member.position || "",
+            };
+          });
+          setMembers(loadedMembers);
+        }
       }
 
-      setDeployUrl(project.links?.website || "");
-      setTechStacks(project.techStack || []);
-      setExistingThumbnailUrl(project.thumbnailUrl || "");
-
-      // 멤버 데이터 로드
-      if (project.members && Array.isArray(project.members)) {
-        const loadedMembers = project.members.map((member: any) => {
-          const resolvedTrackId =
-            member.trackId ??
-            tracks.find((track) => track.trackName === member.trackName)
-              ?.trackId ??
-            null;
-
-          return {
-            id: createMemberId(),
-            userId: member.userId ?? null,
-            name: member.name || "",
-            trackId: resolvedTrackId,
-            position: member.role || member.position || "",
-          };
-        });
-        setMembers(loadedMembers);
-      }
-
+      setExistingThumbnailUrl(project.thumbnailImageUrl || "");
       setIsDataLoaded(true);
     }
   }, [project, isDataLoaded, tracks]);
+
+  // 폼 데이터 변경 시 localStorage에 자동 저장
+  useEffect(() => {
+    if (isDataLoaded && Object.keys(dirtyFields).length > 0) {
+      saveDraft();
+    }
+  }, [
+    title,
+    description,
+    githubPath,
+    deployUrl,
+    techStacks,
+    members,
+    isDataLoaded,
+    dirtyFields,
+  ]);
+
+  // 새로고침 방지 - 변경사항이 있을 때
+  useEffect(() => {
+    const hasChanges = Object.keys(dirtyFields).length > 0;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasChanges && !isSubmitting) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [dirtyFields, isSubmitting]);
 
   useEffect(() => {
     if (!thumbnail) {
@@ -338,12 +446,11 @@ export default function ProjectEditPage() {
 
     try {
       const filteredMembers = members
+        .filter((member) => member.userId && member.position.trim())
         .map((member) => ({
           userId: member.userId,
-          trackId: member.trackId,
           position: member.position.trim(),
-        }))
-        .filter((member) => member.userId && member.trackId && member.position);
+        }));
 
       const payload = {
         title,
@@ -354,20 +461,30 @@ export default function ProjectEditPage() {
         members: filteredMembers,
       };
 
-      // 썸네일이 변경된 경우에만 multipart로 전송
-      if (thumbnail) {
-        const formData = new FormData();
-        formData.append(
-          "data",
-          new Blob([JSON.stringify(payload)], { type: "application/json" }),
-        );
-        formData.append("thumbnailImage", thumbnail);
+      // 항상 multipart로 전송 (백엔드가 multipart만 받음)
+      const formData = new FormData();
+      formData.append(
+        "data",
+        new Blob([JSON.stringify(payload)], { type: "application/json" }),
+      );
 
-        await api.upload(`/projects/${projectId}`, formData, "PUT");
-      } else {
-        // 썸네일 변경 없이 데이터만 업데이트
-        await api.put(`/projects/${projectId}`, payload);
+      // 썸네일이 변경된 경우에만 추가
+      if (thumbnail) {
+        formData.append("thumbnailImage", thumbnail);
       }
+
+      await api.upload(`/projects/${projectId}`, formData, "PATCH");
+
+      // 캐시 무효화 - 수정 후 즐시 반영
+      queryClient.invalidateQueries({
+        queryKey: ["project", projectId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["projects"],
+      });
+
+      // localStorage 클리어
+      clearDraft();
 
       router.push(`/projects/${projectId}`);
     } catch (error) {
@@ -545,13 +662,32 @@ export default function ProjectEditPage() {
               type="file"
               accept="image/*"
               onChange={(event) => {
-                setThumbnail(event.target.files?.[0] ?? null);
+                const file = event.target.files?.[0] ?? null;
+                if (file) {
+                  const maxSize = 5 * 1024 * 1024; // 5MB
+                  if (file.size > maxSize) {
+                    setFieldError(
+                      "thumbnailImage",
+                      "이미지 크기는 5M 이하로 업로드해주세요.",
+                    );
+                    setThumbnail(null);
+                    event.target.value = "";
+                    return;
+                  }
+                  setFieldError("thumbnailImage", null);
+                }
+                setThumbnail(file);
                 markDirty("thumbnailImage");
               }}
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              변경하지 않으면 기존 이미지가 유지됩니다
+              변경하지 않으면 기존 이미지가 유지됩니다 (최대 5M)
             </p>
+            {shouldShowError("thumbnailImage") && (
+              <p className="mt-1 text-xs text-red-600">
+                {fieldErrors.thumbnailImage}
+              </p>
+            )}
             {thumbnailPreview && (
               <div className="mt-3 overflow-hidden rounded-lg border border-border">
                 <img
@@ -564,7 +700,11 @@ export default function ProjectEditPage() {
             {!thumbnailPreview && existingThumbnailUrl && (
               <div className="mt-3 overflow-hidden rounded-lg border border-border">
                 <img
-                  src={existingThumbnailUrl}
+                  src={
+                    existingThumbnailUrl.startsWith("http")
+                      ? existingThumbnailUrl
+                      : `http://${existingThumbnailUrl}`
+                  }
                   alt="현재 썸네일"
                   className="h-48 w-full object-cover opacity-60"
                 />
@@ -773,7 +913,10 @@ export default function ProjectEditPage() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.back()}
+            onClick={() => {
+              clearDraft();
+              router.back();
+            }}
             disabled={isSubmitting}
           >
             취소
