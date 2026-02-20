@@ -17,11 +17,24 @@ export default function ProjectsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<number | "all">("all");
 
+  interface BackendProjectSummary {
+    projectId: number;
+    title: string;
+    thumbnailImageUrl: string;
+    trackNames: string[];
+    techStacks: string[];
+    memberCount: number;
+    viewCount: number;
+    reactionCount: number;
+    reactedByMe: boolean;
+    createdAt: string;
+  }
+
   const { data: projectsResponse, isLoading } = useQuery({
     queryKey: ["projects", activeFilter, searchQuery],
     queryFn: () =>
       api.get<{
-        content: ProjectCardProps[];
+        content: BackendProjectSummary[];
         totalElements: number;
         totalPages: number;
       }>("/projects", {
@@ -33,7 +46,16 @@ export default function ProjectsPage() {
       }),
   });
 
-  const projects = projectsResponse?.content ?? [];
+  const projects = (projectsResponse?.content ?? []).map((p) => ({
+    projectId: p.projectId,
+    title: p.title,
+    thumbnailImageUrl: p.thumbnailImageUrl,
+    trackNames: p.trackNames,
+    techStacks: p.techStacks,
+    memberCount: p.memberCount,
+    likeCount: p.reactionCount,
+    likedByMe: p.reactedByMe,
+  }));
 
   const { data: tracksResponse } = useQuery({
     queryKey: ["project-track-filters"],

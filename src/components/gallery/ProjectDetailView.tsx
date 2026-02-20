@@ -84,18 +84,37 @@ export function ProjectDetailView({
   // 좋아요 Mutation with Optimistic Updates
   const likeMutation = useMutation({
     mutationFn: async (shouldLike: boolean) => {
-      if (shouldLike) {
-        await reactionApi.addReaction({
-          targetType: "PROJECT",
-          targetId: parseInt(id),
-          reactionType: "LIKE",
-        });
-      } else {
-        await reactionApi.removeReaction({
-          targetType: "PROJECT",
-          targetId: parseInt(id),
-          reactionType: "LIKE",
-        });
+      console.log(
+        "[ProjectDetailView] mutationFn called with shouldLike:",
+        shouldLike,
+      );
+      try {
+        if (shouldLike) {
+          console.log(
+            "[ProjectDetailView] Calling addReaction with projectId:",
+            parseInt(id),
+          );
+          await reactionApi.addReaction({
+            targetType: "PROJECT",
+            targetId: parseInt(id),
+            reactionType: "LIKE",
+          });
+          console.log("[ProjectDetailView] addReaction success");
+        } else {
+          console.log(
+            "[ProjectDetailView] Calling removeReaction with projectId:",
+            parseInt(id),
+          );
+          await reactionApi.removeReaction({
+            targetType: "PROJECT",
+            targetId: parseInt(id),
+            reactionType: "LIKE",
+          });
+          console.log("[ProjectDetailView] removeReaction success");
+        }
+      } catch (err) {
+        console.error("[ProjectDetailView] Mutation error:", err);
+        throw err;
       }
     },
     onSuccess: () => {
@@ -122,12 +141,18 @@ export function ProjectDetailView({
 
   // 좋아요 클릭 핸들러
   const handleLikeClick = async () => {
+    console.log("[ProjectDetailView] Like button clicked", {
+      id,
+      visualIsLiked,
+    });
     if (!user) {
+      console.log("[ProjectDetailView] User not logged in");
       toast.error("로그인이 필요합니다.");
       return;
     }
 
     const nextLiked = !visualIsLiked;
+    console.log("[ProjectDetailView] Mutating with shouldLike:", nextLiked);
 
     // Optimistic Update - 즉시 UI 업데이트
     setVisualIsLiked(nextLiked);

@@ -9,11 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiError, AdminTrack } from "@/lib/api";
+import { api, ApiError, AdminTrack, userApi, UserSummary } from "@/lib/api";
 import { Loader2, FolderPlus } from "lucide-react";
 
 interface MemberDraft {
   id: string;
+  userId: number | null;
   name: string;
   trackId: number | null;
   position: string;
@@ -53,6 +54,9 @@ export default function ProjectCreatePage() {
   );
   const [dirtyFields, setDirtyFields] = useState<Record<string, boolean>>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [activeMemberIndex, setActiveMemberIndex] = useState<number | null>(
+    null,
+  );
 
   // Fetch available tracks
   const { data: tracksData } = useQuery({
@@ -63,7 +67,18 @@ export default function ProjectCreatePage() {
         .then((res) => res.content),
   });
 
+  const { data: mentionUsers } = useQuery({
+    queryKey: ["mention-users"],
+    queryFn: () => userApi.getMentionUsers({ size: 200 }),
+    staleTime: 60 * 1000,
+  });
+
   const tracks = tracksData ?? [];
+  const resolveTrackId = (trackName?: string) => {
+    if (!trackName) return null;
+    const match = tracks.find((track) => track.trackName === trackName);
+    return match ? match.trackId : null;
+  };
 
   useEffect(() => {
     if (!thumbnail) {
@@ -82,6 +97,7 @@ export default function ProjectCreatePage() {
       setMembers([
         {
           id: createMemberId(),
+          userId: user.id ?? null,
           name: user.name,
           trackId: user.trackId ?? null,
           position: "",
@@ -227,7 +243,13 @@ export default function ProjectCreatePage() {
   const addMember = () => {
     setMembers((prev) => [
       ...prev,
-      { id: createMemberId(), name: "", trackId: null, position: "" },
+      {
+        id: createMemberId(),
+        userId: null,
+        name: "",
+        trackId: null,
+        position: "",
+      },
     ]);
   };
 
@@ -300,11 +322,11 @@ export default function ProjectCreatePage() {
     try {
       const filteredMembers = members
         .map((member) => ({
-          name: member.name.trim(),
+          userId: member.userId,
           trackId: member.trackId,
           position: member.position.trim(),
         }))
-        .filter((member) => member.name && member.trackId && member.position);
+        .filter((member) => member.userId && member.trackId && member.position);
 
       const payload = {
         title,
@@ -606,25 +628,85 @@ export default function ProjectCreatePage() {
                         </span>
                       )}
                     </div>
-                    <Input
-                      value={member.name}
-                      onChange={(event) =>
-                        updateMember(index, "name", event.target.value)
-                      }
-                      placeholder="멤버 이름"
-                      readOnly={index === 0 && !!user?.name}
-                      className={
-                        index === 0 && user?.name
-                          ? "bg-gray-50 text-gray-700"
-                          : undefined
-                      }
-                      required={index === 0 && !!user?.name}
-                    />
+                    <div className="relative">
+                      <Input
+                        value={member.name}
+                        onChange={(event) => {
+                          updateMember(index, "name", event.target.value);
+                          updateMember(index, "userId", null);
+                          setActiveMemberIndex(index);
+                        }}
+                        onFocus={() => setActiveMemberIndex(index)}
+                        onBlur={() =>
+                          setTimeout(() => {
+                            setActiveMemberIndex((prev) =>
+                              prev === index ? null : prev,
+                            );
+                          }, 200)
+                        }
+                        placeholder="멤버 이름 검색"
+                        readOnly={index === 0 && !!user?.name}
+                        className={
+                          index === 0 && user?.name
+                            ? "bg-gray-50 text-gray-700"
+                            : undefined
+                        }
+                        required={index === 0 && !!user?.name}
+                      />
+                      {activeMemberIndex === index &&
+                        member.name.trim() &&
+                        !(index === 0 && user?.name) &&
+                        (mentionUsers ?? []).filter((u: UserSummary) =>
+                          u.name
+                            .toLowerCase()
+                            .includes(member.name.trim().toLowerCase()),
+                        ).length > 0 && (
+                          <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-md border border-border bg-popover shadow-md">
+                            {(mentionUsers ?? [])
+                              .filter((u: UserSummary) =>
+                                u.name
+                                  .toLowerCase()
+                                  .includes(member.name.trim().toLowerCase()),
+                              )
+                              .slice(0, 8)
+                              .map((u: UserSummary) => (
+                                <button
+                                  key={u.userId}
+                                  type="button"
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
+                                  onMouseDown={(event) => {
+                                    event.preventDefault();
+                                    updateMember(index, "name", u.name);
+                                    updateMember(index, "userId", u.userId);
+                                    updateMember(
+                                      index,
+                                      "trackId",
+                                      resolveTrackId(u.trackName),
+                                    );
+                                    setActiveMemberIndex(null);
+                                  }}
+                                >
+                                  <span className="font-medium">
+                                    {u.name}
+                                    {u.trackName ? ` (${u.trackName})` : ""}
+                                  </span>
+                                </button>
+                              ))}
+                          </div>
+                        )}
+                    </div>
                     {index === 0 && user?.name && (
                       <p className="mt-1 text-xs text-muted-foreground">
                         본인 이름은 자동 입력됩니다.
                       </p>
                     )}
+                    {!(index === 0 && user?.name) &&
+                      member.name.trim() &&
+                      !member.userId && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          목록에서 유저를 선택해주세요.
+                        </p>
+                      )}
                   </div>
                   <div>
                     <label className="mb-2 block text-sm font-medium">
@@ -644,7 +726,7 @@ export default function ProjectCreatePage() {
                       onBlur={() => markTouched("myTrack")}
                       className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                       disabled={index === 0 && !!user?.trackId}
-                      required={index === 0 || !!member.name.trim()}
+                      required={index === 0 || !!member.userId}
                     >
                       <option value="">트랙 선택</option>
                       {tracks.map((track) => (
@@ -670,7 +752,7 @@ export default function ProjectCreatePage() {
                       }
                       onBlur={() => markTouched("myPosition")}
                       className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                      required={index === 0 || !!member.name.trim()}
+                      required={index === 0 || !!member.userId}
                     >
                       <option value="">포지션 선택</option>
                       {POSITION_OPTIONS.map((option) => (
