@@ -16,6 +16,7 @@ import {
   Pencil,
   Trash2,
   Send,
+  FileText,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -146,6 +147,12 @@ function StudyDetailContent({ study }: { study: StudyDetail }) {
         </div>
         {study.isLeader && (
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/studies/${study.id}/report`}>
+                <FileText className="h-4 w-4 mr-1" />
+                결과 보고
+              </Link>
+            </Button>
             <Button variant="outline" size="sm" asChild>
               <Link href={`/studies/${study.id}/edit`}>
                 <Pencil className="h-4 w-4 mr-1" />
