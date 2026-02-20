@@ -15,15 +15,15 @@ export function ProjectFilters({
   tracks,
 }: ProjectFiltersProps) {
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-1">
+    <div className="mb-6 flex flex-wrap items-center gap-3">
       {/* 전체 필터 */}
       <button
         onClick={() => onFilterChange("all")}
         className={cn(
-          "rounded-lg px-4 py-2 text-sm transition-all duration-200",
+          "rounded-md px-4 py-2 text-sm font-medium transition-colors",
           activeFilter === "all"
-            ? "bg-primary/10 text-primary font-bold"
-            : "text-muted-foreground font-medium hover:bg-primary/5 hover:text-primary",
+            ? "bg-gray-900 text-white"
+            : "bg-gray-100 text-gray-700 hover:bg-gray-200",
         )}
       >
         전체
@@ -35,10 +35,10 @@ export function ProjectFilters({
           key={track.trackId}
           onClick={() => onFilterChange(track.trackId as number)}
           className={cn(
-            "rounded-lg px-4 py-2 text-sm transition-all duration-200",
+            "rounded-md px-4 py-2 text-sm font-medium transition-colors",
             activeFilter === track.trackId
-              ? "bg-primary/10 text-primary font-bold"
-              : "text-muted-foreground font-medium hover:bg-primary/5 hover:text-primary",
+              ? "bg-gray-900 text-white"
+              : "bg-gray-100 text-gray-700 hover:bg-gray-200",
           )}
         >
           {track.trackName}
@@ -48,7 +48,7 @@ export function ProjectFilters({
       {activeFilter !== "all" && (
         <button
           onClick={() => onFilterChange("all")}
-          className="px-3 py-2 text-sm font-medium text-muted-foreground underline-offset-2 transition-colors hover:text-primary hover:underline"
+          className="text-sm text-gray-500 hover:text-gray-700 underline"
         >
           초기화
         </button>

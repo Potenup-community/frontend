@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { shopApi, pointApi, ShopItemSummaryDto, ShopItemType, resolveApiImageUrl } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,9 +15,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Store, Coins, ShoppingCart, Package, Loader2 } from 'lucide-react';
+import { Store, Coins, ShoppingCart, Package, Loader2, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useProfilePreview } from '@/contexts/ProfilePreviewContext';
 
 const ITEM_TYPE_LABEL: Record<ShopItemType, string> = {
   BADGE: '뱃지',
@@ -39,7 +40,10 @@ const FILTER_TABS: { value: FilterType; label: string }[] = [
 export default function ShopPage() {
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [selectedItem, setSelectedItem] = useState<ShopItemSummaryDto | null>(null);
+  const { previewItems, setPreviewItem, clearPreviewItem, clearPreview } = useProfilePreview();
   const queryClient = useQueryClient();
+
+  useEffect(() => () => clearPreview(), [clearPreview]);
 
   const { data: groups, isLoading: shopLoading } = useQuery({
     queryKey: ['shop', 'items'],
@@ -128,12 +132,21 @@ export default function ShopPage() {
                   <h2 className="text-base font-semibold">{ITEM_TYPE_LABEL[group.itemType]}</h2>
                   <Badge variant="secondary">{group.items.length}</Badge>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
                   {group.items.map((item) => (
                     <ShopItemCard
                       key={item.id}
                       item={item}
                       onSelect={() => setSelectedItem(item)}
+                      isPreviewing={previewItems[item.itemType] === item.imageUrl}
+                      onPreview={() => {
+                        if (!item.imageUrl) return;
+                        if (previewItems[item.itemType] === item.imageUrl) {
+                          clearPreviewItem(item.itemType);
+                          return;
+                        }
+                        setPreviewItem(item.itemType, item.imageUrl);
+                      }}
                       canAfford={(balance?.balance ?? 0) >= item.price}
                     />
                   ))}
@@ -144,12 +157,21 @@ export default function ShopPage() {
         </div>
       ) : (
         // 특정 탭: 단일 그리드
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
           {allItems.map((item) => (
             <ShopItemCard
               key={item.id}
               item={item}
               onSelect={() => setSelectedItem(item)}
+              isPreviewing={previewItems[item.itemType] === item.imageUrl}
+              onPreview={() => {
+                if (!item.imageUrl) return;
+                if (previewItems[item.itemType] === item.imageUrl) {
+                  clearPreviewItem(item.itemType);
+                  return;
+                }
+                setPreviewItem(item.itemType, item.imageUrl);
+              }}
               canAfford={(balance?.balance ?? 0) >= item.price}
             />
           ))}
@@ -223,33 +245,56 @@ export default function ShopPage() {
   );
 }
 
-function ShopItemCard({ item, onSelect, canAfford }: {
+function ShopItemCard({ item, onSelect, onPreview, isPreviewing, canAfford }: {
   item: ShopItemSummaryDto;
   onSelect: () => void;
+  onPreview: () => void;
+  isPreviewing: boolean;
   canAfford: boolean;
 }) {
   const durationText = item.durationDays == null ? '영구' : `${item.durationDays}일`;
 
   return (
-    <Card className="group hover:border-primary/50 transition-all cursor-pointer" onClick={onSelect}>
-      <CardContent className="p-4 flex flex-col items-center text-center gap-3">
-        <div className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center overflow-hidden group-hover:bg-primary/5 transition-colors">
+    <Card className="border-border/80 hover:border-primary/40 transition-colors">
+      <CardContent className="p-2 h-full flex flex-col gap-1.5">
+        <div className="w-full aspect-square rounded-lg bg-muted flex items-center justify-center overflow-hidden">
           {item.imageUrl ? (
             <img src={resolveApiImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-contain" style={{ imageRendering: 'pixelated' }} />
           ) : (
-            <Package className="h-10 w-10 text-muted-foreground" />
+            <Package className="h-5 w-5 text-muted-foreground" />
           )}
         </div>
-        <div className="w-full space-y-1">
-          <p className="text-sm font-medium truncate">{item.name}</p>
-          <p className="text-xs text-muted-foreground">{durationText}</p>
+        <div className="space-y-1">
+          <p className="text-[11px] font-medium truncate">{item.name}</p>
+          <div className="flex flex-wrap items-center gap-1">
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">{ITEM_TYPE_LABEL[item.itemType]}</Badge>
+            <Badge variant={item.consumable ? 'secondary' : 'outline'} className="text-[10px] px-1.5 py-0.5">{durationText}</Badge>
+          </div>
+          <p className={cn('text-[11px] font-semibold', canAfford ? 'text-primary' : 'text-muted-foreground')}>
+            {item.price.toLocaleString()} P
+          </p>
         </div>
-        <div className={cn(
-          'flex items-center gap-1 text-sm font-bold',
-          canAfford ? 'text-primary' : 'text-muted-foreground'
-        )}>
-          <Coins className="h-3.5 w-3.5" />
-          {item.price.toLocaleString()} P
+        <div className="mt-auto grid grid-cols-2 gap-1">
+          <Button
+            variant={isPreviewing ? 'default' : 'outline'}
+            size="sm"
+            className="h-6 px-1 text-[10px]"
+            onClick={onPreview}
+            disabled={!item.imageUrl}
+          >
+            <Eye className="h-3 w-3 mr-0.5" />
+            미리보기
+          </Button>
+          <Button
+            size="sm"
+            className="h-6 px-1 text-[10px]"
+            variant={canAfford ? 'default' : 'outline'}
+            onClick={onSelect}
+            disabled={!canAfford}
+          >
+            <ShoppingCart className="h-3 w-3 mr-0.5" />
+            구매
+          </Button>
         </div>
       </CardContent>
     </Card>
@@ -258,13 +303,13 @@ function ShopItemCard({ item, onSelect, canAfford }: {
 
 function ShopSkeleton() {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
       {[...Array(8)].map((_, i) => (
         <Card key={i}>
-          <CardContent className="p-4 flex flex-col items-center gap-3">
-            <Skeleton className="h-20 w-20 rounded-xl" />
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-4 w-16" />
+          <CardContent className="p-2">
+            <Skeleton className="aspect-square w-full rounded-lg" />
+            <Skeleton className="h-3 w-16 mt-2" />
+            <Skeleton className="h-3 w-12 mt-1" />
           </CardContent>
         </Card>
       ))}

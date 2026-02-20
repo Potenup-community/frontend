@@ -41,7 +41,7 @@ export function ProjectHeader({
         </div>
         <Button
           asChild
-          className="h-10 px-4 self-start sm:self-auto bg-orange-500 text-white font-semibold shadow-md hover:bg-orange-600 hover:text-white"
+          className="h-10 px-4 self-start sm:self-auto bg-orange-400 text-white hover:bg-orange-500 hover:text-white"
         >
           <Link
             href="/projects/create"

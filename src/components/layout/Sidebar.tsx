@@ -11,9 +11,11 @@ import { Users, Flame, Hash, FileText, Coins, Store, Package } from 'lucide-reac
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi, pointApi, inventoryApi, resolveApiImageUrl } from '@/lib/api';
 import { EquippedBadge } from '@/components/ui/EquippedBadge';
+import { useProfilePreview } from '@/contexts/ProfilePreviewContext';
 
 export function Sidebar() {
   const { user, isAuthenticated, isLoading } = useAuth();
+  const { previewItems } = useProfilePreview();
   const router = useRouter();
 
   const { data: dashboard } = useQuery({
@@ -41,6 +43,10 @@ export function Sidebar() {
   const equippedFrame = allItems.find((i) => i.itemType === 'FRAME' && i.equipped);
   const equippedBadgeItem = allItems.find((i) => i.itemType === 'BADGE' && i.equipped);
 
+  const appliedPetSrc = previewItems.PET ?? equippedPet?.imageUrl ?? null;
+  const appliedFrameSrc = previewItems.FRAME ?? equippedFrame?.imageUrl ?? null;
+  const appliedBadgeSrc = previewItems.BADGE ?? equippedBadgeItem?.imageUrl ?? null;
+
   if (isLoading) {
     return <SidebarSkeleton />;
   }
@@ -61,15 +67,15 @@ export function Sidebar() {
                     src={user.profileImageUrl}
                     name={user.name}
                     className="h-28 w-28 border-4 border-card shadow-lg"
-                    petSrc={equippedPet?.imageUrl ?? null}
-                    frameSrc={equippedFrame?.imageUrl ?? null}
+                    petSrc={appliedPetSrc}
+                    frameSrc={appliedFrameSrc}
                     frameTransform="translateX(0.5%) scale(1.4)"
                   />
                   <div className="mt-3 flex items-center gap-1.5">
                     <h3 className="font-semibold text-lg">{user.name}</h3>
-                    {equippedBadgeItem?.imageUrl && (
+                    {appliedBadgeSrc && (
                       <img
-                        src={resolveApiImageUrl(equippedBadgeItem.imageUrl)}
+                        src={resolveApiImageUrl(appliedBadgeSrc)}
                         alt="Badge"
                         className="h-[22px] w-auto"
                         style={{ imageRendering: 'pixelated' }}
