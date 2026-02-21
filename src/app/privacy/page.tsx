@@ -29,8 +29,8 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold">1. 개인정보의 수집</h2>
             <p>
-              PotenUp 커뮤니티(이하 "회사")는 서비스 제공을 위해 다음의 개인정보를
-              수집합니다:
+              PotenUp 커뮤니티(이하 "회사")는 서비스 제공을 위해 다음의
+              개인정보를 수집합니다:
             </p>
             <ul className="list-inside list-disc space-y-2">
               <li>이메일 주소</li>
@@ -63,10 +63,12 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold">4. 개인정보의 공개 및 제3자 제공</h2>
+            <h2 className="text-xl font-semibold">
+              4. 개인정보의 공개 및 제3자 제공
+            </h2>
             <p>
-              회사는 원칙적으로 개인정보를 제3자에게 제공하지 않습니다. 단, 다음의
-              경우는 예외입니다:
+              회사는 원칙적으로 개인정보를 제3자에게 제공하지 않습니다. 단,
+              다음의 경우는 예외입니다:
             </p>
             <ul className="list-inside list-disc space-y-2">
               <li>법령에 의한 요청</li>
@@ -131,7 +133,7 @@ export default function PrivacyPage() {
               연락주시기 바랍니다:
             </p>
             <ul className="list-inside list-disc space-y-2">
-              <li>이메일: privacy@potenup.com</li>
+              <li>이메일: potenup-community@gmail.com</li>
               <li>고객지원팀</li>
             </ul>
           </section>

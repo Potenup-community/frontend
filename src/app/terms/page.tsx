@@ -39,8 +39,8 @@ export default function TermsPage() {
             <h2 className="text-xl font-semibold">제2조 정의</h2>
             <ul className="list-inside list-disc space-y-2">
               <li>
-                <strong>서비스</strong>: 회사가 제공하는 프로젝트 갤러리, 커뮤니티
-                기능 등 모든 서비스
+                <strong>서비스</strong>: 회사가 제공하는 프로젝트 갤러리,
+                커뮤니티 기능 등 모든 서비스
               </li>
               <li>
                 <strong>회원</strong>: 본 약관을 동의하고 서비스를 이용하는 개인
@@ -55,8 +55,8 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold">제3조 서비스 이용</h2>
             <p>
-              회원은 본 약관을 동의함으로써 서비스를 이용할 권리를 갖습니다. 회사는
-              서비스의 질 향상을 위해 서비스 내용을 변경할 수 있습니다.
+              회원은 본 약관을 동의함으로써 서비스를 이용할 권리를 갖습니다.
+              회사는 서비스의 질 향상을 위해 서비스 내용을 변경할 수 있습니다.
             </p>
           </section>
 
@@ -74,9 +74,7 @@ export default function TermsPage() {
 
           <section>
             <h2 className="text-xl font-semibold">제5조 서비스 중단</h2>
-            <p>
-              회사는 다음의 사유로 서비스를 중단할 수 있습니다:
-            </p>
+            <p>회사는 다음의 사유로 서비스를 중단할 수 있습니다:</p>
             <ul className="list-inside list-disc space-y-2">
               <li>서비스 점검 및 유지보수</li>
               <li>시스템 장애</li>
@@ -86,9 +84,7 @@ export default function TermsPage() {
 
           <section>
             <h2 className="text-xl font-semibold">제6조 책임의 한계</h2>
-            <p>
-              회사는 다음에 대해 책임을 지지 않습니다:
-            </p>
+            <p>회사는 다음에 대해 책임을 지지 않습니다:</p>
             <ul className="list-inside list-disc space-y-2">
               <li>외부 링크 사이트의 콘텐츠</li>
               <li>회원 간의 분쟁</li>
