@@ -1,37 +1,44 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Loader2, CheckCircle2, ArrowLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Loader2, CheckCircle2, ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { api, Track } from '@/lib/api';
-import { toast } from 'sonner';
-import { VALIDATION } from '@/lib/constants';
+} from "@/components/ui/select";
+import { api, Track } from "@/lib/api";
+import { toast } from "sonner";
+import { VALIDATION } from "@/lib/constants";
 
 const signUpSchema = z.object({
   name: z
     .string()
-    .min(1, '이름을 입력해주세요')
-    .max(VALIDATION.NAME_MAX_LENGTH, `이름은 ${VALIDATION.NAME_MAX_LENGTH}자 이내로 입력해주세요`),
+    .min(1, "이름을 입력해주세요")
+    .max(
+      VALIDATION.NAME_MAX_LENGTH,
+      `이름은 ${VALIDATION.NAME_MAX_LENGTH}자 이내로 입력해주세요`,
+    ),
   phoneNumber: z
     .string()
-    .regex(VALIDATION.PHONE_PATTERN, '올바른 전화번호 형식이 아닙니다 (예: 01012345678)'),
-  trackId: z.string().min(1, '트랙을 선택해주세요'),
+    .transform((val) => val.replace(/\D/g, ""))
+    .refine(
+      (val) => VALIDATION.PHONE_PATTERN.test(val),
+      "올바른 전화번호 형식이 아닙니다 (예: 010-1234-5678)",
+    ),
+  trackId: z.string().min(1, "트랙을 선택해주세요"),
 });
 
 type SignUpFormData = z.infer<typeof signUpSchema>;
@@ -45,18 +52,19 @@ export default function SignUp() {
   const [idToken, setIdToken] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = sessionStorage.getItem('pendingIdToken');
+    const token = sessionStorage.getItem("pendingIdToken");
     setIdToken(token);
     if (!token) {
-      toast.error('인증 정보가 없습니다. 다시 로그인해주세요.');
-      router.push('/signin');
+      toast.error("인증 정보가 없습니다. 다시 로그인해주세요.");
+      router.push("/signin");
     }
   }, [router]);
 
   // Fetch tracks
   const { data: tracks, isLoading: isLoadingTracks } = useQuery({
-    queryKey: ['tracks'],
-    queryFn: () => api.get<Track[]>('/admin/tracks').then((res: any) => res.content),
+    queryKey: ["tracks"],
+    queryFn: () =>
+      api.get<Track[]>("/admin/tracks").then((res: any) => res.content),
   });
 
   // Form setup
@@ -64,28 +72,47 @@ export default function SignUp() {
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
   });
 
+  const formatPhoneNumber = (value: string) => {
+    const numbersOnly = value.replace(/\D/g, "");
+
+    if (numbersOnly.length > 11) {
+      return formatPhoneNumber(numbersOnly.slice(0, 11));
+    }
+
+    if (numbersOnly.length <= 3) return numbersOnly;
+    if (numbersOnly.length <= 7) {
+      return `${numbersOnly.slice(0, 3)}-${numbersOnly.slice(3)}`;
+    }
+    return `${numbersOnly.slice(0, 3)}-${numbersOnly.slice(3, 7)}-${numbersOnly.slice(7)}`;
+  };
+
+  const getPhoneNumberDigitsOnly = (value: string) => {
+    return value.replace(/\D/g, "");
+  };
+
   // Sign up mutation
   const signUpMutation = useMutation({
     mutationFn: (data: SignUpFormData) =>
-      api.post('/users/signup', {
+      api.post("/users/signup", {
         idToken,
         trackId: parseInt(data.trackId),
         name: data.name,
-        phoneNumber: data.phoneNumber,
-        provider: 'GOOGLE',
+        phoneNumber: getPhoneNumberDigitsOnly(data.phoneNumber),
+        provider: "GOOGLE",
       }),
     onSuccess: () => {
       // Clear stored idToken
-      sessionStorage.removeItem('pendingIdToken');
+      sessionStorage.removeItem("pendingIdToken");
       setIsSuccess(true);
     },
     onError: (error: any) => {
-      toast.error(error.message || '회원가입에 실패했습니다.');
+      toast.error(error.message || "회원가입에 실패했습니다.");
     },
   });
 
@@ -107,7 +134,7 @@ export default function SignUp() {
               <br />
               승인이 완료되면 알림을 보내드려요.
             </p>
-            <Button onClick={() => router.push('/signin')} className="w-full">
+            <Button onClick={() => router.push("/signin")} className="w-full">
               로그인 페이지로
             </Button>
           </CardContent>
@@ -134,7 +161,9 @@ export default function SignUp() {
         <Card className="shadow-soft">
           <CardHeader className="text-center">
             <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">P</span>
+              <span className="text-primary-foreground font-bold text-lg">
+                P
+              </span>
             </div>
             <CardTitle className="text-2xl">회원가입</CardTitle>
             <p className="text-muted-foreground mt-2">
@@ -150,22 +179,31 @@ export default function SignUp() {
               <div className="space-y-2">
                 <Label htmlFor="trackId">참여 과정</Label>
                 <Select
-                  onValueChange={(value) => setValue('trackId', value)}
+                  onValueChange={(value) => setValue("trackId", value)}
                   disabled={isLoadingTracks}
                 >
-                  <SelectTrigger className={errors.trackId ? 'border-destructive' : ''}>
+                  <SelectTrigger
+                    className={errors.trackId ? "border-destructive" : ""}
+                  >
                     <SelectValue placeholder="과정을 선택해주세요" />
                   </SelectTrigger>
                   <SelectContent>
-                    {tracks?.map((track: { trackId: number; trackName: string }) => (
-                      <SelectItem key={track.trackId} value={String(track.trackId)}>
-                        {track.trackName}
-                      </SelectItem>
-                    ))}
+                    {tracks?.map(
+                      (track: { trackId: number; trackName: string }) => (
+                        <SelectItem
+                          key={track.trackId}
+                          value={String(track.trackId)}
+                        >
+                          {track.trackName}
+                        </SelectItem>
+                      ),
+                    )}
                   </SelectContent>
                 </Select>
                 {errors.trackId && (
-                  <p className="text-sm text-destructive">{errors.trackId.message}</p>
+                  <p className="text-sm text-destructive">
+                    {errors.trackId.message}
+                  </p>
                 )}
               </div>
 
@@ -175,11 +213,13 @@ export default function SignUp() {
                 <Input
                   id="name"
                   placeholder="홍길동"
-                  {...register('name')}
-                  className={errors.name ? 'border-destructive' : ''}
+                  {...register("name")}
+                  className={errors.name ? "border-destructive" : ""}
                 />
                 {errors.name && (
-                  <p className="text-sm text-destructive">{errors.name.message}</p>
+                  <p className="text-sm text-destructive">
+                    {errors.name.message}
+                  </p>
                 )}
               </div>
 
@@ -188,12 +228,18 @@ export default function SignUp() {
                 <Label htmlFor="phoneNumber">전화번호</Label>
                 <Input
                   id="phoneNumber"
-                  placeholder="01012345678"
-                  {...register('phoneNumber')}
-                  className={errors.phoneNumber ? 'border-destructive' : ''}
+                  placeholder="010-1234-5678"
+                  {...register("phoneNumber")}
+                  onChange={(e) => {
+                    const formatted = formatPhoneNumber(e.target.value);
+                    setValue("phoneNumber", formatted);
+                  }}
+                  className={errors.phoneNumber ? "border-destructive" : ""}
                 />
                 {errors.phoneNumber && (
-                  <p className="text-sm text-destructive">{errors.phoneNumber.message}</p>
+                  <p className="text-sm text-destructive">
+                    {errors.phoneNumber.message}
+                  </p>
                 )}
               </div>
 
@@ -208,7 +254,7 @@ export default function SignUp() {
                     가입 신청 중...
                   </>
                 ) : (
-                  '가입 신청하기'
+                  "가입 신청하기"
                 )}
               </Button>
             </form>
