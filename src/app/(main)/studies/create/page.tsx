@@ -29,6 +29,10 @@ export default function CreateStudyPage() {
   const [formData, setFormData] = useState<StudyCreateRequest>({
     name: '',
     description: '',
+    week1Plan: '',
+    week2Plan: '',
+    week3Plan: '',
+    week4Plan: '',
     capacity: 5,
     budget: 'MEAL',
     budgetExplain: '',
@@ -65,6 +69,22 @@ export default function CreateStudyPage() {
       newErrors.description = '스터디 설명을 입력해주세요.';
     } else if (formData.description.length > VALIDATION.STUDY_DESC_MAX) {
       newErrors.description = `스터디 설명은 최대 ${VALIDATION.STUDY_DESC_MAX}자까지 가능합니다.`;
+    }
+
+    if (!formData.week1Plan.trim()) {
+      newErrors.week1Plan = '1주차 계획을 입력해주세요.';
+    }
+
+    if (!formData.week2Plan.trim()) {
+      newErrors.week2Plan = '2주차 계획을 입력해주세요.';
+    }
+
+    if (!formData.week3Plan.trim()) {
+      newErrors.week3Plan = '3주차 계획을 입력해주세요.';
+    }
+
+    if (!formData.week4Plan.trim()) {
+      newErrors.week4Plan = '4주차 계획을 입력해주세요.';
     }
 
     if (formData.capacity < VALIDATION.STUDY_CAPACITY_MIN) {
@@ -272,6 +292,69 @@ export default function CreateStudyPage() {
                 />
                 {errors.budgetExplain && (
                   <p className="text-sm text-destructive">{errors.budgetExplain}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Weekly Plans */}
+            <div className="space-y-4">
+              <Label>
+                주차별 계획 <span className="text-destructive">*</span>
+              </Label>
+
+              <div className="space-y-2">
+                <Label htmlFor="week1Plan">1주차 계획</Label>
+                <Textarea
+                  id="week1Plan"
+                  value={formData.week1Plan}
+                  onChange={(e) => setFormData({ ...formData, week1Plan: e.target.value })}
+                  placeholder="1주차에 진행할 내용을 입력해주세요"
+                  rows={3}
+                />
+                {errors.week1Plan && (
+                  <p className="text-sm text-destructive">{errors.week1Plan}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="week2Plan">2주차 계획</Label>
+                <Textarea
+                  id="week2Plan"
+                  value={formData.week2Plan}
+                  onChange={(e) => setFormData({ ...formData, week2Plan: e.target.value })}
+                  placeholder="2주차에 진행할 내용을 입력해주세요"
+                  rows={3}
+                />
+                {errors.week2Plan && (
+                  <p className="text-sm text-destructive">{errors.week2Plan}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="week3Plan">3주차 계획</Label>
+                <Textarea
+                  id="week3Plan"
+                  value={formData.week3Plan}
+                  onChange={(e) => setFormData({ ...formData, week3Plan: e.target.value })}
+                  placeholder="3주차에 진행할 내용을 입력해주세요"
+                  rows={3}
+                />
+                {errors.week3Plan && (
+                  <p className="text-sm text-destructive">{errors.week3Plan}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="week4Plan">4주차 계획</Label>
+                <Textarea
+                  id="week4Plan"
+                  value={formData.week4Plan}
+                  onChange={(e) => setFormData({ ...formData, week4Plan: e.target.value })}
+                  placeholder="4주차에 진행할 내용을 입력해주세요"
+                  rows={3}
+                />
+                {errors.week4Plan && (
+                  <p className="text-sm text-destructive">{errors.week4Plan}</p>
                 )}
               </div>
             </div>

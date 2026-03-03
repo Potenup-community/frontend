@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Shield,
@@ -23,6 +24,11 @@ import {
   Eye,
   EyeOff,
   Package,
+  FileText,
+  History,
+  Undo2,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,6 +38,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,11 +65,32 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { UserMentionPicker, type MentionableUser } from '@/components/ui/user-mention-picker';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfilePreview } from '@/contexts/ProfilePreviewContext';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, adminApi, studyApi, scheduleApi, shopApi, userApi, AdminTrack, Study, Schedule, ScheduleCreateRequest, ScheduleUpdateRequest, ScheduleQueryResponse, ShopItemSummaryDto, ShopItemType, UserSummary, resolveApiImageUrl } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { useInfiniteQuery, useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  ApiError,
+  adminApi,
+  studyApi,
+  scheduleApi,
+  shopApi,
+  userApi,
+  AdminTrack,
+  Study,
+  StudyDetail,
+  StudyReportListItem,
+  StudyReportStatus,
+  StudyReportApprovalHistoryItem,
+  ScheduleCreateRequest,
+  ScheduleUpdateRequest,
+  ScheduleQueryResponse,
+  ShopItemSummaryDto,
+  ShopItemType,
+  UserSummary,
+  resolveApiImageUrl
+} from '@/lib/api';
 import { toast } from 'sonner';
 import { formatDistanceToNow, format } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -75,7 +103,8 @@ interface AdminUser {
   trackId: number;
   trackName: string;
   profileImageUrl?: string;
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  requestStatus?: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  status?: 'ACTIVE' | 'EXPIRED' | 'BLOCKED';
   createdAt: string;
 }
 
@@ -178,6 +207,10 @@ function AdminContent() {
                 <BookOpen className="h-4 w-4" />
                 스터디 승인
               </TabsTrigger>
+              <TabsTrigger value="reports" className="gap-2">
+                <FileText className="h-4 w-4" />
+                결과 보고 결재
+              </TabsTrigger>
               <TabsTrigger value="schedules" className="gap-2">
                 <Calendar className="h-4 w-4" />
                 일정 관리
@@ -185,6 +218,9 @@ function AdminContent() {
             </TabsList>
             <TabsContent value="approval" className="mt-4">
               <StudyApprovalTab />
+            </TabsContent>
+            <TabsContent value="reports" className="mt-4">
+              <StudyReportApprovalTab />
             </TabsContent>
             <TabsContent value="schedules" className="mt-4">
               <ScheduleManagementTab />
@@ -843,6 +879,11 @@ function TrackManagementTab() {
 function StudyApprovalTab() {
   const queryClient = useQueryClient();
   const [selectedStudy, setSelectedStudy] = useState<Study | null>(null);
+  const [forceJoinStudy, setForceJoinStudy] = useState<Study | null>(null);
+  const [forceJoinInput, setForceJoinInput] = useState('');
+  const [forceJoinMentionQuery, setForceJoinMentionQuery] = useState('');
+  const [forceJoinDebouncedQuery, setForceJoinDebouncedQuery] = useState('');
+  const [selectedForceJoinUser, setSelectedForceJoinUser] = useState<MentionableUser | null>(null);
 
   const { data: pendingStudies, isLoading } = useQuery({
     queryKey: ['admin', 'studies', 'pending'],
@@ -851,6 +892,166 @@ function StudyApprovalTab() {
       return res.content || [];
     },
   });
+
+  const { data: forceJoinStudyDetail, isLoading: isForceJoinStudyLoading } = useQuery({
+    queryKey: ['admin', 'studies', 'detail', forceJoinStudy?.id],
+    queryFn: async () => {
+      if (!forceJoinStudy) {
+        throw new Error('선택된 스터디가 없습니다.');
+      }
+
+      return studyApi.getStudy(forceJoinStudy.id);
+    },
+    enabled: !!forceJoinStudy,
+  });
+
+  const forceJoinTrackId =
+    forceJoinStudyDetail?.leader?.trackId ?? forceJoinStudy?.leader?.trackId;
+  const forceJoinTrackName =
+    forceJoinStudyDetail?.leader?.trackName ?? forceJoinStudy?.leader?.trackName;
+  const isForceJoinClosedStudy = forceJoinStudy?.status === 'RECRUITING_CLOSED';
+  const showForceJoinStatusError = !!forceJoinStudy && !isForceJoinClosedStudy;
+  const showForceJoinTrackError =
+    !!forceJoinStudy &&
+    isForceJoinClosedStudy &&
+    !isForceJoinStudyLoading &&
+    !forceJoinTrackId;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setForceJoinDebouncedQuery(forceJoinMentionQuery.trim());
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [forceJoinMentionQuery]);
+
+  type ForceJoinUsersPage = Awaited<ReturnType<typeof adminApi.getUsers>>;
+
+  const {
+    data: forceJoinTrackUserPages,
+    isLoading: isForceJoinTrackUsersLoading,
+    isFetchingNextPage: isForceJoinFetchingNextPage,
+    hasNextPage: hasMoreForceJoinTrackUsers,
+    fetchNextPage: fetchNextForceJoinTrackUsers,
+  } = useInfiniteQuery({
+    queryKey: ['admin', 'users', 'force-join', forceJoinTrackId, forceJoinDebouncedQuery],
+    queryFn: async ({ pageParam }) => {
+      const page = typeof pageParam === 'number' ? pageParam : 0;
+
+      if (!forceJoinTrackId) {
+        return {
+          content: [],
+          pageNumber: page,
+          pageSize: 30,
+          hasNext: false,
+          totalElements: 0,
+        } as ForceJoinUsersPage;
+      }
+
+      return adminApi.getUsers({
+        trackId: forceJoinTrackId,
+        requestStatus: 'ACCEPTED',
+        role: 'MEMBER',
+        status: 'ACTIVE',
+        name: forceJoinDebouncedQuery || undefined,
+        page,
+        size: 30,
+      });
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) =>
+      lastPage.hasNext ? lastPage.pageNumber + 1 : undefined,
+    enabled:
+      !!forceJoinStudy &&
+      !!forceJoinTrackId &&
+      forceJoinStudy.status === 'RECRUITING_CLOSED',
+    staleTime: 60 * 1000,
+  });
+
+  const forceJoinTrackUsers = useMemo<AdminUser[]>(() => {
+    const dedup = new Map<number, AdminUser>();
+
+    for (const page of forceJoinTrackUserPages?.pages || []) {
+      for (const user of page.content || []) {
+        if (!dedup.has(user.userId)) {
+          dedup.set(user.userId, user as AdminUser);
+        }
+      }
+    }
+
+    return Array.from(dedup.values());
+  }, [forceJoinTrackUserPages]);
+
+  const existingParticipantIds = useMemo(() => {
+    const ids = new Set<number>();
+    const leaderId = forceJoinStudyDetail?.leader?.id ?? forceJoinStudy?.leader?.id;
+
+    if (leaderId) {
+      ids.add(leaderId);
+    }
+
+    for (const participant of forceJoinStudyDetail?.participants || []) {
+      ids.add(participant.id);
+    }
+
+    return ids;
+  }, [forceJoinStudy, forceJoinStudyDetail]);
+
+  const forceJoinCandidates = useMemo<MentionableUser[]>(
+    () =>
+      forceJoinTrackUsers
+        .filter((user) => !existingParticipantIds.has(user.userId))
+        .map((user) => ({
+          userId: user.userId,
+          name: user.name,
+          profileImageUrl: user.profileImageUrl,
+          trackId: user.trackId,
+          trackName: user.trackName,
+          email: user.email,
+        })),
+    [existingParticipantIds, forceJoinTrackUsers],
+  );
+
+  const applyOptimisticForceJoin = (
+    detail: StudyDetail | undefined,
+    selectedUser: MentionableUser | null,
+  ): StudyDetail | undefined => {
+    if (!detail || !selectedUser) {
+      return detail;
+    }
+
+    const hasParticipant = (detail.participants || []).some(
+      (participant) => participant.id === selectedUser.userId,
+    );
+
+    if (hasParticipant) {
+      return detail;
+    }
+
+    return {
+      ...detail,
+      currentMemberCount: detail.currentMemberCount + 1,
+      participants: [
+        ...(detail.participants || []),
+        {
+          id: selectedUser.userId,
+          name: selectedUser.name,
+          trackId: selectedUser.trackId,
+          trackName: selectedUser.trackName,
+          profileImageUrl: selectedUser.profileImageUrl,
+          joinedAt: new Date().toISOString(),
+        },
+      ],
+    };
+  };
+
+  const handleLoadMoreForceJoinUsers = () => {
+    if (!hasMoreForceJoinTrackUsers || isForceJoinFetchingNextPage) {
+      return;
+    }
+
+    fetchNextForceJoinTrackUsers();
+  };
 
   const approveMutation = useMutation({
     mutationFn: (studyId: number) => studyApi.approveStudy(studyId),
@@ -864,15 +1065,167 @@ function StudyApprovalTab() {
     },
   });
 
+  type ForceJoinMutationContext = {
+    previousPendingStudies?: Study[];
+    previousAdminStudyDetail?: StudyDetail;
+    previousStudyDetail?: StudyDetail;
+  };
+
+  const forceJoinMutation = useMutation({
+    mutationFn: ({ studyId, targetUserId }: { studyId: number; targetUserId: number }) =>
+      studyApi.forceJoinStudy(studyId, targetUserId),
+    onMutate: async ({ studyId, targetUserId }): Promise<ForceJoinMutationContext> => {
+      await queryClient.cancelQueries({ queryKey: ['admin', 'studies', 'pending'] });
+      await queryClient.cancelQueries({ queryKey: ['admin', 'studies', 'detail', studyId] });
+      await queryClient.cancelQueries({ queryKey: ['study', studyId] });
+
+      const previousPendingStudies = queryClient.getQueryData<Study[]>(['admin', 'studies', 'pending']);
+      const previousAdminStudyDetail = queryClient.getQueryData<StudyDetail>([
+        'admin',
+        'studies',
+        'detail',
+        studyId,
+      ]);
+      const previousStudyDetail = queryClient.getQueryData<StudyDetail>(['study', studyId]);
+
+      queryClient.setQueryData<Study[]>(['admin', 'studies', 'pending'], (old) =>
+        (old || []).map((study) =>
+          study.id === studyId
+            ? {
+                ...study,
+                currentMemberCount: study.currentMemberCount + 1,
+              }
+            : study,
+        ),
+      );
+
+      const optimisticUser =
+        selectedForceJoinUser?.userId === targetUserId ? selectedForceJoinUser : null;
+
+      queryClient.setQueryData<StudyDetail | undefined>(
+        ['admin', 'studies', 'detail', studyId],
+        (old) => applyOptimisticForceJoin(old, optimisticUser),
+      );
+      queryClient.setQueryData<StudyDetail | undefined>(['study', studyId], (old) =>
+        applyOptimisticForceJoin(old, optimisticUser),
+      );
+
+      return {
+        previousPendingStudies,
+        previousAdminStudyDetail,
+        previousStudyDetail,
+      };
+    },
+    onSuccess: () => {
+      toast.success(`${selectedForceJoinUser?.name || '사용자'}님을 추가 참여 처리했습니다.`);
+      closeForceJoinDialog();
+    },
+    onError: (error, variables, context) => {
+      if (context?.previousPendingStudies) {
+        queryClient.setQueryData(['admin', 'studies', 'pending'], context.previousPendingStudies);
+      }
+
+      if (context?.previousAdminStudyDetail) {
+        queryClient.setQueryData(
+          ['admin', 'studies', 'detail', variables.studyId],
+          context.previousAdminStudyDetail,
+        );
+      }
+
+      if (context?.previousStudyDetail) {
+        queryClient.setQueryData(['study', variables.studyId], context.previousStudyDetail);
+      }
+
+      if (error instanceof ApiError) {
+        if (error.status === 400) {
+          toast.error(error.message || '추가 참여 조건을 확인해주세요.');
+          return;
+        }
+
+        if (error.status === 404) {
+          toast.error('스터디 또는 유저를 찾을 수 없습니다.');
+          return;
+        }
+      }
+
+      toast.error('추가 참여 처리에 실패했습니다.');
+    },
+    onSettled: (_, __, variables) => {
+      if (!variables) {
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['admin', 'studies'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'studies', 'detail', variables.studyId] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users', 'force-join'] });
+      queryClient.invalidateQueries({ queryKey: ['study', variables.studyId] });
+    },
+  });
+
   const confirmApprove = () => {
     if (!selectedStudy) return;
     approveMutation.mutate(selectedStudy.id);
   };
 
+  const closeForceJoinDialog = () => {
+    if (forceJoinMutation.isPending) {
+      return;
+    }
+
+    setForceJoinStudy(null);
+    setForceJoinInput('');
+    setForceJoinMentionQuery('');
+    setForceJoinDebouncedQuery('');
+    setSelectedForceJoinUser(null);
+  };
+
+  const openForceJoinDialog = (study: Study) => {
+    setForceJoinStudy(study);
+    setForceJoinInput('');
+    setForceJoinMentionQuery('');
+    setForceJoinDebouncedQuery('');
+    setSelectedForceJoinUser(null);
+  };
+
+  const handleForceJoinInputChange = (nextValue: string) => {
+    setForceJoinInput(nextValue);
+
+    if (!selectedForceJoinUser) {
+      return;
+    }
+
+    const normalizedValue = nextValue.trim();
+    const selectedToken = `@${selectedForceJoinUser.name}`;
+
+    if (normalizedValue !== selectedToken) {
+      setSelectedForceJoinUser(null);
+    }
+  };
+
+  const handleForceJoinMentionQueryChange = (query: string) => {
+    setForceJoinMentionQuery(query);
+  };
+
+  const confirmForceJoin = () => {
+    if (!forceJoinStudy || !selectedForceJoinUser) {
+      return;
+    }
+
+    if (forceJoinStudy.status !== 'RECRUITING_CLOSED') {
+      toast.error('모집 마감 상태의 스터디만 추가 참여가 가능합니다.');
+      return;
+    }
+
+    forceJoinMutation.mutate({
+      studyId: forceJoinStudy.id,
+      targetUserId: selectedForceJoinUser.userId,
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold">승인 대기 중인 스터디</h2>
+        <h2 className="text-lg font-semibold">진행 시작 대기 중인 스터디</h2>
         <Badge variant="secondary">{pendingStudies?.length || 0}개</Badge>
       </div>
 
@@ -882,13 +1235,13 @@ function StudyApprovalTab() {
             <Skeleton key={i} className="h-32" />
           ))}
         </div>
-      ) : pendingStudies?.length === 0 ? (
-        <EmptyState
-          icon={BookOpen}
-          title="대기 중인 스터디가 없습니다"
-          description="모든 스터디 신청이 처리되었습니다."
-        />
-      ) : (
+        ) : pendingStudies?.length === 0 ? (
+          <EmptyState
+            icon={BookOpen}
+            title="대기 중인 스터디가 없습니다"
+            description="진행 시작 대기 스터디가 없습니다."
+          />
+        ) : (
         <div className="space-y-4">
           {pendingStudies?.map((study) => (
             <Card key={study.id}>
@@ -925,9 +1278,18 @@ function StudyApprovalTab() {
                     )}
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openForceJoinDialog(study)}
+                      disabled={study.status !== 'RECRUITING_CLOSED'}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      추가 참여
+                    </Button>
                     <Button size="sm" onClick={() => setSelectedStudy(study)}>
                       <CheckCircle className="h-4 w-4 mr-1" />
-                      승인
+                      진행 시작
                     </Button>
                   </div>
                 </div>
@@ -945,7 +1307,7 @@ function StudyApprovalTab() {
           <AlertDialogHeader>
             <AlertDialogTitle>스터디 승인</AlertDialogTitle>
             <AlertDialogDescription>
-              "{selectedStudy?.name}" 스터디를 승인하시겠습니까?
+              "{selectedStudy?.name}" 스터디를 진행 시작 처리하시겠습니까?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -957,12 +1319,947 @@ function StudyApprovalTab() {
               {approveMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                '승인'
+                '진행 시작'
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog
+        open={!!forceJoinStudy}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeForceJoinDialog();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>스터디 추가 참여</DialogTitle>
+            <DialogDescription>
+              "{forceJoinStudy?.name}" 스터디에 트랙 구성원을 추가로 참여시킵니다.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">
+                {forceJoinTrackName ? `${forceJoinTrackName} 트랙` : '트랙 정보 없음'}
+              </Badge>
+              {forceJoinStudy && (
+                <Badge variant="outline">
+                  현재 인원 {forceJoinStudy.currentMemberCount}/{forceJoinStudy.capacity}
+                </Badge>
+              )}
+            </div>
+
+            {showForceJoinStatusError && (
+              <p className="text-sm text-destructive">
+                모집 마감 상태의 스터디만 추가 참여가 가능합니다.
+              </p>
+            )}
+
+            {showForceJoinTrackError && (
+              <p className="text-sm text-destructive">
+                스터디 트랙 정보를 찾을 수 없어 사용자 검색을 진행할 수 없습니다.
+              </p>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="force-join-user-input">추가 참여 사용자 (1명)</Label>
+              <UserMentionPicker
+                id="force-join-user-input"
+                value={forceJoinInput}
+                onChange={handleForceJoinInputChange}
+                users={forceJoinCandidates}
+                onSelectUser={setSelectedForceJoinUser}
+                onMentionQueryChange={handleForceJoinMentionQueryChange}
+                hasMore={!!hasMoreForceJoinTrackUsers}
+                onLoadMore={handleLoadMoreForceJoinUsers}
+                loadingMore={isForceJoinFetchingNextPage}
+                placeholder="@이름으로 검색 후 한 명 선택"
+                disabled={
+                  forceJoinMutation.isPending ||
+                  !forceJoinTrackId ||
+                  forceJoinStudy?.status !== 'RECRUITING_CLOSED'
+                }
+                loading={isForceJoinStudyLoading || isForceJoinTrackUsersLoading}
+                emptyMessage="선택 가능한 트랙 구성원이 없습니다."
+              />
+              <p className="text-xs text-muted-foreground">
+                한 명만 선택할 수 있으며, 다른 사용자를 선택하면 기존 선택이 대체됩니다.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                검색 풀은 해당 스터디 트랙의 승인된 유저로 제한됩니다.
+              </p>
+            </div>
+
+            {selectedForceJoinUser && (
+              <div className="rounded-md border bg-muted/30 p-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <UserAvatar
+                    src={selectedForceJoinUser.profileImageUrl}
+                    name={selectedForceJoinUser.name}
+                    className="h-8 w-8"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-muted-foreground">선택된 사용자 (1명)</p>
+                    <p className="text-sm font-medium truncate">{selectedForceJoinUser.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {[selectedForceJoinUser.trackName, selectedForceJoinUser.email]
+                        .filter(Boolean)
+                        .join(' · ') || '트랙 사용자'}
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={forceJoinMutation.isPending}
+                  onClick={() => {
+                    setSelectedForceJoinUser(null);
+                    setForceJoinInput('');
+                  }}
+                >
+                  선택 해제
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={forceJoinMutation.isPending}
+              onClick={closeForceJoinDialog}
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              onClick={confirmForceJoin}
+              disabled={
+                forceJoinMutation.isPending ||
+                !selectedForceJoinUser ||
+                !forceJoinTrackId ||
+                forceJoinStudy?.status !== 'RECRUITING_CLOSED'
+              }
+            >
+              {forceJoinMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                '추가 참여'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ==================== Study Report Approval Tab ====================
+function StudyReportApprovalTab() {
+  const queryClient = useQueryClient();
+  const [selectedStatus, setSelectedStatus] = useState<'all' | StudyReportStatus>('all');
+  const [selectedReport, setSelectedReport] = useState<StudyReportListItem | null>(null);
+  const [actionType, setActionType] = useState<'REJECT' | 'CANCEL' | null>(null);
+  const [actionReason, setActionReason] = useState('');
+
+  const {
+    data,
+    isLoading,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['admin', 'study-reports', selectedStatus],
+    queryFn: ({ pageParam }) =>
+      studyApi.getStudyReports({
+        status: selectedStatus === 'all' ? undefined : selectedStatus,
+        page: typeof pageParam === 'number' ? pageParam : 0,
+        size: 20,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) =>
+      lastPage.hasNext ? lastPage.pageNumber + 1 : undefined,
+  });
+
+  const reports = data?.pages.flatMap((page) => page.content || []) || [];
+
+  const historyPreviewQueries = useQueries({
+    queries: reports.map((report) => ({
+      queryKey: ['admin', 'study-report-history-preview', report.studyId],
+      queryFn: () => studyApi.getStudyReportApprovalHistories(report.studyId),
+      staleTime: 60 * 1000,
+    })),
+  });
+
+  const reportReasonPreviewMap = useMemo(() => {
+    const previewMap = new Map<number, string>();
+
+    reports.forEach((report, index) => {
+      const queryData = historyPreviewQueries[index]?.data;
+      const histories = Array.isArray(queryData)
+        ? queryData
+        : queryData
+          ? [queryData as unknown as StudyReportApprovalHistoryItem]
+          : [];
+
+      const reason = histories.find((history) => Boolean(history.reason?.trim()))?.reason?.trim();
+
+      if (reason) {
+        previewMap.set(report.studyId, reason);
+      }
+    });
+
+    return previewMap;
+  }, [historyPreviewQueries, reports]);
+
+  const {
+    data: reportDetail,
+    isLoading: isReportDetailLoading,
+    error: reportDetailError,
+    refetch: refetchReportDetail,
+  } = useQuery({
+    queryKey: ['admin', 'study-report-detail', selectedReport?.studyId],
+    queryFn: () => {
+      if (!selectedReport) {
+        throw new Error('선택된 결과 보고가 없습니다.');
+      }
+
+      return studyApi.getStudyReport(selectedReport.studyId);
+    },
+    enabled: !!selectedReport,
+  });
+
+  const {
+    data: studyDetail,
+    isLoading: isStudyDetailLoading,
+    error: studyDetailError,
+    refetch: refetchStudyDetail,
+  } = useQuery({
+    queryKey: ['admin', 'study-report-study-detail', selectedReport?.studyId],
+    queryFn: () => {
+      if (!selectedReport) {
+        throw new Error('선택된 결과 보고가 없습니다.');
+      }
+
+      return studyApi.getStudy(selectedReport.studyId);
+    },
+    enabled: !!selectedReport,
+  });
+
+  const {
+    data: reportHistoryRaw,
+    isLoading: isReportHistoryLoading,
+    error: reportHistoryError,
+    refetch: refetchReportHistory,
+  } = useQuery({
+    queryKey: ['admin', 'study-report-history', selectedReport?.studyId],
+    queryFn: () => {
+      if (!selectedReport) {
+        throw new Error('선택된 결과 보고가 없습니다.');
+      }
+
+      return studyApi.getStudyReportApprovalHistories(selectedReport.studyId);
+    },
+    enabled: !!selectedReport,
+  });
+
+  const reportHistory = useMemo<StudyReportApprovalHistoryItem[]>(() => {
+    if (!reportHistoryRaw) {
+      return [];
+    }
+
+    return Array.isArray(reportHistoryRaw)
+      ? reportHistoryRaw
+      : [reportHistoryRaw as unknown as StudyReportApprovalHistoryItem];
+  }, [reportHistoryRaw]);
+
+  const reportStatus = reportDetail?.status ?? selectedReport?.status;
+  const canApproveOrReject =
+    reportStatus === 'SUBMITTED' || reportStatus === 'RESUBMITTED';
+  const canCancelDecision =
+    reportStatus === 'APPROVED' || reportStatus === 'REJECTED';
+
+  const reportStatusLabelMap: Record<StudyReportStatus, string> = {
+    SUBMITTED: '상신됨',
+    RESUBMITTED: '재상신됨',
+    APPROVED: '승인됨',
+    REJECTED: '반려됨',
+  };
+
+  const reportStatusBadgeClassMap: Record<StudyReportStatus, string> = {
+    SUBMITTED: 'bg-blue-500 text-white',
+    RESUBMITTED: 'bg-sky-600 text-white',
+    APPROVED: 'bg-success text-success-foreground',
+    REJECTED: 'bg-destructive text-destructive-foreground',
+  };
+
+  const reportActionLabelMap: Record<string, string> = {
+    SUBMIT: '상신',
+    RESUBMIT: '재상신',
+    APPROVE: '승인',
+    REJECT: '반려',
+    CANCEL: '결재 취소',
+  };
+
+  const studyStatusLabelMap: Record<Study['status'], string> = {
+    RECRUITING: '모집중',
+    RECRUITING_CLOSED: '모집마감',
+    IN_PROGRESS: '진행중',
+    COMPLETED: '완료',
+  };
+
+  const studyBudgetLabelMap: Record<'BOOK' | 'MEAL', string> = {
+    BOOK: '책',
+    MEAL: '식비',
+  };
+
+  const invalidateReportQueries = (studyId: number) => {
+    queryClient.invalidateQueries({ queryKey: ['admin', 'study-reports'] });
+    queryClient.invalidateQueries({ queryKey: ['admin', 'study-report-detail', studyId] });
+    queryClient.invalidateQueries({ queryKey: ['admin', 'study-report-history', studyId] });
+    queryClient.invalidateQueries({ queryKey: ['admin', 'study-report-history-preview', studyId] });
+    queryClient.invalidateQueries({ queryKey: ['admin', 'study-report-study-detail', studyId] });
+    queryClient.invalidateQueries({ queryKey: ['study-report-submission-status', studyId] });
+    queryClient.invalidateQueries({ queryKey: ['study-report-detail', studyId] });
+  };
+
+  const handleReportActionError = (error: unknown, fallbackMessage: string) => {
+    if (error instanceof ApiError) {
+      if (error.code === 'STUDY_REPORT_STATUS_TRANSITION_INVALID') {
+        toast.error('현재 결과 보고 상태에서는 이 작업을 수행할 수 없습니다.');
+        return;
+      }
+
+      if (error.code === 'STUDY_REPORT_REJECT_REASON_REQUIRED') {
+        toast.error('반려 사유를 입력해주세요.');
+        return;
+      }
+
+      if (error.code === 'STUDY_REPORT_REASON_TOO_LONG') {
+        toast.error('사유는 최대 1000자까지 입력할 수 있습니다.');
+        return;
+      }
+
+      if (error.code === 'STUDY_REPORT_NOT_FOUND' || error.status === 404) {
+        toast.error('결과 보고를 찾을 수 없습니다.');
+        return;
+      }
+
+      toast.error(error.message || fallbackMessage);
+      return;
+    }
+
+    toast.error(fallbackMessage);
+  };
+
+  const approveMutation = useMutation({
+    mutationFn: (studyId: number) => studyApi.approveStudyReport(studyId),
+    onSuccess: (_, studyId) => {
+      toast.success('결과 보고가 승인되었습니다.');
+      invalidateReportQueries(studyId);
+    },
+    onError: (error) => {
+      handleReportActionError(error, '결과 보고 승인에 실패했습니다.');
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ studyId, reason }: { studyId: number; reason: string }) =>
+      studyApi.rejectStudyReport(studyId, { reason }),
+    onSuccess: (_, variables) => {
+      toast.success('결과 보고가 반려되었습니다.');
+      invalidateReportQueries(variables.studyId);
+      setActionType(null);
+      setActionReason('');
+    },
+    onError: (error) => {
+      handleReportActionError(error, '결과 보고 반려에 실패했습니다.');
+    },
+  });
+
+  const cancelDecisionMutation = useMutation({
+    mutationFn: ({ studyId, reason }: { studyId: number; reason?: string }) =>
+      studyApi.cancelStudyReportDecision(studyId, { reason }),
+    onSuccess: (_, variables) => {
+      toast.success('결재 상태가 취소되었습니다.');
+      invalidateReportQueries(variables.studyId);
+      setActionType(null);
+      setActionReason('');
+    },
+    onError: (error) => {
+      handleReportActionError(error, '결재 취소에 실패했습니다.');
+    },
+  });
+
+  const isActionPending =
+    approveMutation.isPending || rejectMutation.isPending || cancelDecisionMutation.isPending;
+
+  const closeDetailDialog = () => {
+    if (isActionPending) {
+      return;
+    }
+
+    setSelectedReport(null);
+    setActionType(null);
+    setActionReason('');
+  };
+
+  const copyStudyId = async (studyId: number) => {
+    try {
+      await navigator.clipboard.writeText(String(studyId));
+      toast.success(`studyId ${studyId}를 복사했습니다.`);
+    } catch {
+      toast.error('studyId 복사에 실패했습니다.');
+    }
+  };
+
+  const openActionDialog = (type: 'REJECT' | 'CANCEL') => {
+    setActionType(type);
+    setActionReason('');
+  };
+
+  const confirmApprove = () => {
+    if (!selectedReport) {
+      return;
+    }
+
+    if (!canApproveOrReject) {
+      toast.error('현재 상태에서는 승인할 수 없습니다.');
+      return;
+    }
+
+    approveMutation.mutate(selectedReport.studyId);
+  };
+
+  const confirmReasonAction = () => {
+    if (!selectedReport || !actionType) {
+      return;
+    }
+
+    const trimmedReason = actionReason.trim();
+
+    if (trimmedReason.length > 1000) {
+      toast.error('사유는 최대 1000자까지 입력할 수 있습니다.');
+      return;
+    }
+
+    if (actionType === 'REJECT') {
+      if (!canApproveOrReject) {
+        toast.error('현재 상태에서는 반려할 수 없습니다.');
+        return;
+      }
+
+      if (!trimmedReason) {
+        toast.error('반려 사유를 입력해주세요.');
+        return;
+      }
+
+      rejectMutation.mutate({
+        studyId: selectedReport.studyId,
+        reason: trimmedReason,
+      });
+      return;
+    }
+
+    if (!canCancelDecision) {
+      toast.error('현재 상태에서는 결재 취소를 할 수 없습니다.');
+      return;
+    }
+
+    cancelDecisionMutation.mutate({
+      studyId: selectedReport.studyId,
+      reason: trimmedReason || undefined,
+    });
+  };
+
+  return (
+    <div className='space-y-6'>
+      <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4'>
+        <h2 className='text-lg font-semibold'>스터디 결과 보고 결재</h2>
+        <div className='flex items-center gap-2'>
+          <Filter className='h-4 w-4 text-muted-foreground' />
+          <Select
+            value={selectedStatus}
+            onValueChange={(value) => setSelectedStatus(value as 'all' | StudyReportStatus)}
+          >
+            <SelectTrigger className='w-[180px] h-9'>
+              <SelectValue placeholder='상태 선택' />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='all'>전체 상태</SelectItem>
+              <SelectItem value='SUBMITTED'>상신됨</SelectItem>
+              <SelectItem value='RESUBMITTED'>재상신됨</SelectItem>
+              <SelectItem value='APPROVED'>승인됨</SelectItem>
+              <SelectItem value='REJECTED'>반려됨</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className='space-y-3'>
+          {[...Array(3)].map((_, index) => (
+            <Skeleton key={index} className='h-28' />
+          ))}
+        </div>
+      ) : reports.length === 0 ? (
+        <EmptyState
+          icon={FileText}
+          title='결과 보고가 없습니다'
+          description='선택한 조건에 해당하는 결과 보고가 없습니다.'
+        />
+      ) : (
+        <div className='space-y-3'>
+          {reports.map((report) => (
+            <Card key={report.reportId} className='border-border/70'>
+              <CardContent className='p-4 flex items-start justify-between gap-4'>
+                <div className='space-y-2 min-w-0'>
+                  <div className='flex items-center gap-2'>
+                    <h3 className='font-semibold truncate'>{report.studyName}</h3>
+                    <Badge className={reportStatusBadgeClassMap[report.status]}>
+                      {reportStatusLabelMap[report.status]}
+                    </Badge>
+                  </div>
+                  <p className='text-sm text-muted-foreground'>
+                    스터디장: {report.leaderName}
+                  </p>
+                  <p className='text-xs text-muted-foreground'>
+                    상신일: {format(new Date(report.submittedAt), 'yyyy.MM.dd HH:mm', { locale: ko })}
+                  </p>
+                  <p className='text-xs text-muted-foreground'>
+                    최종 수정일: {format(new Date(report.lastModifiedAt), 'yyyy.MM.dd HH:mm', { locale: ko })}
+                  </p>
+                  <p className='text-xs text-muted-foreground'>studyId: {report.studyId}</p>
+                  {reportReasonPreviewMap.get(report.studyId) && (
+                    <p className='text-xs text-muted-foreground truncate'>
+                      최근 사유: {reportReasonPreviewMap.get(report.studyId)}
+                    </p>
+                  )}
+                </div>
+                <div className='flex items-center gap-2'>
+                  <Button
+                    type='button'
+                    size='icon'
+                    variant='outline'
+                    className='h-8 w-8'
+                    onClick={() => copyStudyId(report.studyId)}
+                    aria-label={`studyId ${report.studyId} 복사`}
+                    title='studyId 복사'
+                  >
+                    <Copy className='h-4 w-4' />
+                  </Button>
+                  <Button size='sm' variant='outline' asChild>
+                    <Link href={`/studies/${report.studyId}`} target='_blank' rel='noopener noreferrer'>
+                      <ExternalLink className='h-4 w-4 mr-1' />
+                      바로가기
+                    </Link>
+                  </Button>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    onClick={() => {
+                      setSelectedReport(report);
+                      setActionType(null);
+                      setActionReason('');
+                    }}
+                  >
+                    상세 보기
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+
+          {hasNextPage && (
+            <div className='flex justify-center pt-2'>
+              <Button
+                variant='outline'
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+              >
+                {isFetchingNextPage ? (
+                  <>
+                    <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                    불러오는 중...
+                  </>
+                ) : (
+                  '더 보기'
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <Dialog
+        open={!!selectedReport}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeDetailDialog();
+          }
+        }}
+      >
+        <DialogContent className='max-w-4xl max-h-[85vh] overflow-y-auto'>
+          <DialogHeader>
+            <DialogTitle>{selectedReport?.studyName} 결과 보고</DialogTitle>
+            <DialogDescription>
+              스터디장 {selectedReport?.leaderName}님의 결과 보고를 검토하고 결재합니다.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='space-y-6'>
+            <div className='flex items-center gap-2'>
+              {reportStatus && (
+                <Badge className={reportStatusBadgeClassMap[reportStatus]}>
+                  {reportStatusLabelMap[reportStatus]}
+                </Badge>
+              )}
+              {selectedReport?.submittedAt && (
+                <p className='text-sm text-muted-foreground'>
+                  상신일: {format(new Date(selectedReport.submittedAt), 'yyyy.MM.dd HH:mm', { locale: ko })}
+                </p>
+              )}
+            </div>
+
+            <Card>
+              <CardHeader className='pb-3'>
+                <CardTitle className='text-base'>스터디 상세 정보</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isStudyDetailLoading ? (
+                  <div className='space-y-3'>
+                    <Skeleton className='h-10 w-full' />
+                    <Skeleton className='h-16 w-full' />
+                    <Skeleton className='h-20 w-full' />
+                  </div>
+                ) : studyDetailError || !studyDetail ? (
+                  <div className='space-y-3'>
+                    <p className='text-sm text-destructive'>
+                      스터디 상세 정보를 불러오지 못했습니다.
+                    </p>
+                    <Button size='sm' variant='outline' onClick={() => refetchStudyDetail()}>
+                      다시 시도
+                    </Button>
+                  </div>
+                ) : (
+                  <div className='space-y-4'>
+                    <div className='flex items-center justify-between gap-3'>
+                      <div className='flex items-center gap-3 min-w-0'>
+                        <UserAvatar
+                          src={studyDetail.leader?.profileImageUrl}
+                          name={studyDetail.leader?.name || selectedReport?.leaderName || ''}
+                          className='h-9 w-9'
+                        />
+                        <div className='min-w-0'>
+                          <p className='text-sm font-medium truncate'>
+                            {studyDetail.leader?.name || selectedReport?.leaderName}
+                          </p>
+                          <p className='text-xs text-muted-foreground truncate'>
+                            {studyDetail.leader?.trackName || '트랙 정보 없음'}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant='outline'>
+                        {studyStatusLabelMap[studyDetail.status] || studyDetail.status}
+                      </Badge>
+                    </div>
+
+                    <div className='grid sm:grid-cols-2 gap-3 text-sm'>
+                      <div className='rounded-md border p-3 sm:col-span-2'>
+                        <p className='text-xs text-muted-foreground mb-1'>스터디 이름</p>
+                        <p className='font-medium'>{studyDetail.name}</p>
+                      </div>
+                      <div className='rounded-md border p-3 sm:col-span-2'>
+                        <p className='text-xs text-muted-foreground mb-1'>스터디 설명</p>
+                        <p className='whitespace-pre-wrap'>{studyDetail.description}</p>
+                      </div>
+                      <div className='rounded-md border p-3'>
+                        <p className='text-xs text-muted-foreground mb-1'>모집 인원</p>
+                        <p className='font-medium'>
+                          {studyDetail.currentMemberCount}/{studyDetail.capacity}명
+                        </p>
+                      </div>
+                      <div className='rounded-md border p-3'>
+                        <p className='text-xs text-muted-foreground mb-1'>지원 항목</p>
+                        <p className='font-medium'>
+                          {studyBudgetLabelMap[studyDetail.budget] || studyDetail.budget}
+                        </p>
+                      </div>
+                      <div className='rounded-md border p-3 sm:col-span-2'>
+                        <p className='text-xs text-muted-foreground mb-1'>희망 지원 항목 설명</p>
+                        <p className='whitespace-pre-wrap'>{studyDetail.budgetExplain}</p>
+                      </div>
+                      <div className='rounded-md border p-3 sm:col-span-2'>
+                        <p className='text-xs text-muted-foreground mb-1'>일정</p>
+                        <p className='font-medium'>
+                          {studyDetail.scheduleName || studyDetail.schedule?.month || '일정 정보 없음'}
+                        </p>
+                      </div>
+                      <div className='rounded-md border p-3 sm:col-span-2'>
+                        <p className='text-xs text-muted-foreground mb-2'>팀원 명단</p>
+                        {(studyDetail.participants?.length ?? 0) === 0 ? (
+                          <p className='text-xs text-muted-foreground'>팀원 정보가 없습니다.</p>
+                        ) : (
+                          <div className='flex flex-wrap gap-1.5'>
+                            {studyDetail.participants?.map((participant) => (
+                              <Badge key={participant.id} variant='secondary' className='text-xs'>
+                                {participant.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className='space-y-3'>
+                      <p className='text-sm font-medium text-muted-foreground'>스터디 주차별 계획</p>
+                      {[
+                        { title: '1주차 계획', value: studyDetail.week1Plan },
+                        { title: '2주차 계획', value: studyDetail.week2Plan },
+                        { title: '3주차 계획', value: studyDetail.week3Plan },
+                        { title: '4주차 계획', value: studyDetail.week4Plan },
+                      ].map((item, index) => (
+                        <div key={item.title} className={index < 3 ? 'border-b pb-3' : ''}>
+                          <p className='text-xs text-muted-foreground mb-1'>{item.title}</p>
+                          <p className='text-sm whitespace-pre-wrap'>{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {isReportDetailLoading ? (
+              <div className='space-y-3'>
+                {[...Array(4)].map((_, index) => (
+                  <Skeleton key={index} className='h-24' />
+                ))}
+              </div>
+            ) : reportDetailError || !reportDetail ? (
+              <Card>
+                <CardContent className='pt-6 space-y-3'>
+                  <p className='text-sm text-destructive'>
+                    결과 보고 상세를 불러오지 못했습니다.
+                  </p>
+                  <Button size='sm' variant='outline' onClick={() => refetchReportDetail()}>
+                    다시 시도
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <Card>
+                  <CardHeader className='pb-3'>
+                    <CardTitle className='text-base'>주차별 활동</CardTitle>
+                  </CardHeader>
+                  <CardContent className='space-y-4'>
+                    {[
+                      { title: '1주차 활동', value: reportDetail.week1Activity },
+                      { title: '2주차 활동', value: reportDetail.week2Activity },
+                      { title: '3주차 활동', value: reportDetail.week3Activity },
+                      { title: '4주차 활동', value: reportDetail.week4Activity },
+                    ].map((item, index) => (
+                      <div key={item.title} className={index < 3 ? 'border-b pb-4' : ''}>
+                        <p className='text-sm font-medium text-muted-foreground mb-1'>{item.title}</p>
+                        <p className='text-sm whitespace-pre-wrap'>{item.value}</p>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className='pb-3'>
+                    <CardTitle className='text-base'>팀 회고</CardTitle>
+                  </CardHeader>
+                  <CardContent className='space-y-4'>
+                    {[
+                      { title: '잘한 점', value: reportDetail.retrospectiveGood },
+                      { title: '아쉬운 점', value: reportDetail.retrospectiveImprove },
+                      { title: '다음 액션', value: reportDetail.retrospectiveNextAction },
+                    ].map((item, index) => (
+                      <div key={item.title} className={index < 2 ? 'border-b pb-4' : ''}>
+                        <p className='text-sm font-medium text-muted-foreground mb-1'>{item.title}</p>
+                        <p className='text-sm whitespace-pre-wrap'>{item.value}</p>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className='pb-3'>
+                    <CardTitle className='text-base flex items-center gap-2'>
+                      <History className='h-4 w-4' />
+                      결재 이력
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {isReportHistoryLoading ? (
+                      <div className='space-y-2'>
+                        {[...Array(3)].map((_, index) => (
+                          <Skeleton key={index} className='h-10' />
+                        ))}
+                      </div>
+                    ) : reportHistoryError ? (
+                      <div className='space-y-3'>
+                        <p className='text-sm text-destructive'>결재 이력을 불러오지 못했습니다.</p>
+                        <Button size='sm' variant='outline' onClick={() => refetchReportHistory()}>
+                          다시 시도
+                        </Button>
+                      </div>
+                    ) : reportHistory.length === 0 ? (
+                      <p className='text-sm text-muted-foreground'>결재 이력이 없습니다.</p>
+                    ) : (
+                      <div className='space-y-3'>
+                        {reportHistory.map((history, index) => (
+                          <div key={`${history.timestamp}-${index}`} className='rounded-md border p-3'>
+                            <div className='flex items-center justify-between gap-2'>
+                              <Badge variant='outline'>
+                                {reportActionLabelMap[history.action] || history.action}
+                              </Badge>
+                              <p className='text-xs text-muted-foreground'>
+                                {format(new Date(history.timestamp), 'yyyy.MM.dd HH:mm', { locale: ko })}
+                              </p>
+                            </div>
+                            <p className='text-xs text-muted-foreground mt-1'>
+                              처리자 ID: {history.actorId}
+                            </p>
+                            {history.reason && (
+                              <p className='text-sm mt-2 whitespace-pre-wrap'>{history.reason}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={closeDetailDialog}
+              disabled={isActionPending}
+            >
+              닫기
+            </Button>
+            {canCancelDecision && (
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() => openActionDialog('CANCEL')}
+                disabled={isActionPending}
+              >
+                <Undo2 className='h-4 w-4 mr-1' />
+                결재 취소
+              </Button>
+            )}
+            {canApproveOrReject && (
+              <Button
+                type='button'
+                variant='outline'
+                className='text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20'
+                onClick={() => openActionDialog('REJECT')}
+                disabled={isActionPending}
+              >
+                <XCircle className='h-4 w-4 mr-1' />
+                반려
+              </Button>
+            )}
+            {canApproveOrReject && (
+              <Button
+                type='button'
+                onClick={confirmApprove}
+                disabled={isActionPending}
+              >
+                {approveMutation.isPending ? (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                ) : (
+                  <>
+                    <CheckCircle className='h-4 w-4 mr-1' />
+                    승인
+                  </>
+                )}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!actionType}
+        onOpenChange={(open) => {
+          if (!open && !isActionPending) {
+            setActionType(null);
+            setActionReason('');
+          }
+        }}
+      >
+        <DialogContent className='sm:max-w-[520px]'>
+          <DialogHeader>
+            <DialogTitle>{actionType === 'REJECT' ? '결과 보고 반려' : '결재 취소'}</DialogTitle>
+            <DialogDescription>
+              {actionType === 'REJECT'
+                ? '반려 사유를 입력해주세요. 입력한 사유는 이력에 기록됩니다.'
+                : '결재 취소 사유를 입력할 수 있습니다. 비워두어도 취소할 수 있습니다.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='space-y-2'>
+            <Label htmlFor='study-report-action-reason'>
+              사유 {actionType === 'REJECT' ? <span className='text-destructive'>*</span> : '(선택)'}
+            </Label>
+            <Textarea
+              id='study-report-action-reason'
+              value={actionReason}
+              onChange={(event) => setActionReason(event.target.value)}
+              placeholder={actionType === 'REJECT' ? '반려 사유를 입력해주세요' : '결재 취소 사유를 입력해주세요'}
+              rows={4}
+              maxLength={1000}
+              disabled={isActionPending}
+            />
+            <p className='text-xs text-muted-foreground'>{actionReason.length}/1000</p>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='outline'
+              disabled={isActionPending}
+              onClick={() => {
+                setActionType(null);
+                setActionReason('');
+              }}
+            >
+              취소
+            </Button>
+            <Button
+              type='button'
+              onClick={confirmReasonAction}
+              disabled={isActionPending}
+            >
+              {isActionPending ? (
+                <Loader2 className='h-4 w-4 animate-spin' />
+              ) : actionType === 'REJECT' ? (
+                '반려 확정'
+              ) : (
+                '결재 취소 확정'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1822,7 +3119,7 @@ function UserCard({
               </Button>
             </div>
           )}
-          {!showActions && user.status === 'ACCEPTED' && (
+          {!showActions && user.requestStatus === 'ACCEPTED' && (
             <Badge className="bg-green-100 text-green-700 hover:bg-green-100 self-center px-3 py-1">
               승인됨
             </Badge>

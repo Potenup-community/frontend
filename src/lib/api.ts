@@ -526,7 +526,7 @@ export interface Study {
   description: string;
   capacity: number;
   currentMemberCount: number;
-  status: string;
+  status: StudyStatus;
   budget: string;
   chatUrl?: string;
   refUrl?: string;
@@ -660,7 +660,11 @@ export const mapNotificationResponse = (
 
 // ==================== Study Related Types ====================
 
-export type StudyStatus = "PENDING" | "APPROVED" | "CLOSED" | "REJECTED";
+export type StudyStatus =
+  | "RECRUITING"
+  | "RECRUITING_CLOSED"
+  | "IN_PROGRESS"
+  | "COMPLETED";
 export type BudgetType = "BOOK" | "MEAL";
 export type RecruitmentStatus = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -705,6 +709,10 @@ export interface StudyDetail {
   leaderId: number;
   name: string;
   description: string;
+  week1Plan: string;
+  week2Plan: string;
+  week3Plan: string;
+  week4Plan: string;
   capacity: number;
   currentMemberCount: number;
   status: StudyStatus;
@@ -730,18 +738,101 @@ export interface StudyCreateRequest {
   budgetExplain: string;
   chatUrl: string;
   refUrl?: string;
-  tags?: string[];
+  week1Plan: string;
+  week2Plan: string;
+  week3Plan: string;
+  week4Plan: string;
+  tags: string[];
 }
 
 export interface StudyUpdateRequest {
-  name?: string;
-  description?: string;
-  capacity?: number;
-  budget?: BudgetType;
-  budgetExplain?: string;
-  chatUrl?: string;
+  name: string;
+  description: string;
+  capacity: number;
+  budget: BudgetType;
+  budgetExplain: string;
+  chatUrl: string;
   refUrl?: string;
-  tags?: string[];
+  week1Plan: string;
+  week2Plan: string;
+  week3Plan: string;
+  week4Plan: string;
+  tags: string[];
+}
+
+export type StudyReportStatus =
+  | "SUBMITTED"
+  | "RESUBMITTED"
+  | "APPROVED"
+  | "REJECTED";
+
+export interface StudyReportUpsertRequest {
+  week1Activity: string;
+  week2Activity: string;
+  week3Activity: string;
+  week4Activity: string;
+  retrospectiveGood: string;
+  retrospectiveImprove: string;
+  retrospectiveNextAction: string;
+}
+
+export interface StudyReportIdResponse {
+  reportId: number;
+}
+
+export interface StudyReportSubmissionStatus {
+  hasReport: boolean;
+  status?: StudyReportStatus;
+  submittedAt?: string;
+  lastModifiedAt?: string;
+}
+
+export interface StudyReportDetail {
+  reportId: number;
+  studyId: number;
+  status: StudyReportStatus;
+  week1Activity: string;
+  week2Activity: string;
+  week3Activity: string;
+  week4Activity: string;
+  retrospectiveGood: string;
+  retrospectiveImprove: string;
+  retrospectiveNextAction: string;
+  submittedAt: string;
+  lastModifiedAt: string;
+}
+
+export type StudyReportApprovalAction =
+  | "SUBMIT"
+  | "RESUBMIT"
+  | "APPROVE"
+  | "REJECT"
+  | "CANCEL";
+
+export interface StudyReportListItem {
+  reportId: number;
+  studyId: number;
+  studyName: string;
+  leaderId: number;
+  leaderName: string;
+  status: StudyReportStatus;
+  submittedAt: string;
+  lastModifiedAt: string;
+}
+
+export interface StudyReportApprovalHistoryItem {
+  action: StudyReportApprovalAction;
+  actorId: number;
+  reason?: string | null;
+  timestamp: string;
+}
+
+export interface StudyReportRejectRequest {
+  reason: string;
+}
+
+export interface StudyReportCancelRequest {
+  reason?: string;
 }
 
 export interface Recruitment {
@@ -803,6 +894,10 @@ export interface AdminTrack {
   endDate: string;
 }
 
+export type AdminUserRole = "ADMIN" | "MEMBER" | "INSTRUCTOR";
+export type AdminUserStatus = "ACTIVE" | "EXPIRED" | "BLOCKED";
+export type AdminRequestStatus = "PENDING" | "ACCEPTED" | "REJECTED";
+
 // ==================== Study API Functions ====================
 
 export const studyApi = {
@@ -845,9 +940,52 @@ export const studyApi = {
   getMyRecruitments: () =>
     api.get<{ content: Recruitment[] }>("/users/me/recruitments"),
 
-  // 스터디 승인 (관리자)
+  // 스터디 진행 시작 (관리자)
   approveStudy: (studyId: number) =>
-    api.patch<void>(`/studies/${studyId}/approve`),
+    api.patch<void>(`/studies/${studyId}/approve-to-start`),
+
+  // 스터디 추가 참여 (관리자)
+  forceJoinStudy: (studyId: number, targetUserId: number) =>
+    api.post<void>(`/studies/${studyId}/force-join/${targetUserId}`),
+
+  // 내 결과 보고 상신 상태 조회 (스터디장)
+  getMyReportSubmissionStatus: (studyId: number) =>
+    api.get<StudyReportSubmissionStatus>(
+      `/users/me/studies/${studyId}/report/submission-status`,
+    ),
+
+  // 스터디 결과 보고 상세 조회 (스터디장/관리자)
+  getStudyReport: (studyId: number) =>
+    api.get<StudyReportDetail>(`/studies/${studyId}/report`),
+
+  // 스터디 결과 보고 상신 (스터디장)
+  submitStudyReport: (studyId: number, data: StudyReportUpsertRequest) =>
+    api.post<StudyReportIdResponse>(`/studies/${studyId}/report`, data),
+
+  // 스터디 결과 보고 목록 조회 (관리자)
+  getStudyReports: (params?: {
+    status?: StudyReportStatus;
+    page?: number;
+    size?: number;
+  }) => api.get<PaginatedResponse<StudyReportListItem>>("/studies/reports", params),
+
+  // 스터디 결과 보고 결재 이력 조회 (관리자)
+  getStudyReportApprovalHistories: (studyId: number) =>
+    api.get<StudyReportApprovalHistoryItem[]>(
+      `/studies/${studyId}/report/approval-histories`,
+    ),
+
+  // 스터디 결과 보고 승인 (관리자)
+  approveStudyReport: (studyId: number) =>
+    api.patch<void>(`/studies/${studyId}/report/approve`),
+
+  // 스터디 결과 보고 반려 (관리자)
+  rejectStudyReport: (studyId: number, data: StudyReportRejectRequest) =>
+    api.patch<void>(`/studies/${studyId}/report/reject`, data),
+
+  // 스터디 결과 보고 결재 취소 (관리자)
+  cancelStudyReportDecision: (studyId: number, data: StudyReportCancelRequest) =>
+    api.patch<void>(`/studies/${studyId}/report/cancel`, data),
 };
 
 // ==================== Schedule API Functions ====================
@@ -1036,11 +1174,16 @@ export const inventoryApi = {
 export const adminApi = {
   // 유저 목록 조회
   getUsers: (params?: {
-    status?: string;
-    requestStatus?: string;
+    name?: string;
+    email?: string;
+    status?: AdminUserStatus;
+    requestStatus?: AdminRequestStatus;
+    role?: AdminUserRole;
+    provider?: string;
     trackId?: number;
     page?: number;
     size?: number;
+    sort?: string;
   }) =>
     api.get<
       PaginatedResponse<{
@@ -1051,7 +1194,9 @@ export const adminApi = {
         trackId: number;
         trackName: string;
         profileImageUrl?: string;
-        status: string;
+        role?: AdminUserRole;
+        requestStatus?: AdminRequestStatus;
+        status?: AdminUserStatus;
         createdAt: string;
       }>
     >("/admin/users", params),
@@ -1103,11 +1248,11 @@ export const adminApi = {
   // 트랙 삭제
   deleteTrack: (id: number) => api.delete<void>(`/admin/tracks/${id}`),
 
-  // 스터디 목록 조회 (승인 대기)
+  // 스터디 목록 조회 (진행 시작 대기)
   getPendingStudies: (params?: { page?: number; size?: number }) =>
     api.get<PaginatedResponse<Study>>("/studies", {
       ...params,
-      status: "PENDING",
+      status: "RECRUITING_CLOSED",
     }),
 
   // 포인트 직접 지급

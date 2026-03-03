@@ -9,8 +9,16 @@ import { Badge } from '@/components/ui/badge';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { EquippedBadge } from '@/components/ui/EquippedBadge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { api, Study, adminApi, scheduleApi } from '@/lib/api';
-import { BUDGET_LABELS } from '@/lib/constants';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { api, Study, StudyStatus, adminApi, scheduleApi } from '@/lib/api';
+import { BUDGET_LABELS, STUDY_STATUS_LABELS } from '@/lib/constants';
+import { getStudyStatusBadgeProps } from '@/lib/study-status';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow, differenceInDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -18,7 +26,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
 export default function Studies() {
   const [selectedTrack, setSelectedTrack] = useState<number>(0);
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<'all' | StudyStatus>('all');
 
   const { data: tracks } = useQuery({
     queryKey: ['tracks'],
@@ -112,10 +120,11 @@ export default function Studies() {
         {/* 상태 탭 필터 */}
         <div className="flex flex-wrap items-center gap-1">
           {[
-            { value: 'all', label: '전체' },
-            { value: 'PENDING', label: '모집중' },
-            { value: 'CLOSED', label: '모집마감' },
-            { value: 'APPROVED', label: '승인 완료' },
+            { value: 'all' as const, label: '전체' },
+            { value: 'RECRUITING' as const, label: STUDY_STATUS_LABELS.RECRUITING },
+            { value: 'RECRUITING_CLOSED' as const, label: STUDY_STATUS_LABELS.RECRUITING_CLOSED },
+            { value: 'IN_PROGRESS' as const, label: STUDY_STATUS_LABELS.IN_PROGRESS },
+            { value: 'COMPLETED' as const, label: STUDY_STATUS_LABELS.COMPLETED },
           ].map((tab) => (
             <button
               key={tab.value}
@@ -219,7 +228,7 @@ function StudyCard({ study }: { study: Study }) {
     locale: ko,
   });
 
-  const isFull = study.currentMemberCount >= study.capacity;
+  const statusInfo = getStudyStatusBadgeProps(study);
 
   return (
     <Link href={`/studies/${study.id}`}>
@@ -243,10 +252,10 @@ function StudyCard({ study }: { study: Study }) {
               </div>
             </div>
             <Badge
-              variant={isFull ? 'secondary' : 'default'}
-              className={cn(!isFull && 'bg-success text-success-foreground')}
+              variant={statusInfo.variant}
+              className={cn(statusInfo.className)}
             >
-              {isFull ? '마감' : '모집중'}
+              {statusInfo.label}
             </Badge>
           </div>
 
