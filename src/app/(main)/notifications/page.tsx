@@ -19,16 +19,24 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   api,
   NotificationsResponse,
+  NotificationResponse,
   mapNotificationResponse,
   Notification,
 } from "@/lib/api";
 import { toast } from "sonner";
 
 const NOTIFICATION_ICONS: Record<string, React.ElementType> = {
-  COMMENT: MessageCircle,
-  REPLY: MessageCircle,
-  LIKE: Heart,
-  NOTICE: Megaphone,
+  POST_COMMENT: MessageCircle,
+  POST_REACTION: Heart,
+  COMMENT_REPLY: MessageCircle,
+  COMMENT_REACTION: Heart,
+  STUDY_APPLICATION: Bell,
+  STUDY_APPROVED: Check,
+  STUDY_DELETED: Bell,
+  COMMENT_MENTION: MessageCircle,
+  ANNOUNCEMENT: Megaphone,
+  STUDY_RECRUIT_START: Bell,
+  STUDY_RECRUIT_END: Bell,
 };
 
 export default function Notifications() {
@@ -39,8 +47,11 @@ export default function Notifications() {
   const { data, isLoading } = useQuery({
     queryKey: ["notifications"],
     queryFn: async () => {
-      const res = await api.get<NotificationsResponse>("/notifications");
-      return res.notifications.map(mapNotificationResponse);
+      const res = await api.get<NotificationsResponse | NotificationResponse[]>(
+        "/notifications",
+      );
+      const notifications = Array.isArray(res) ? res : (res.notifications ?? []);
+      return notifications.map(mapNotificationResponse);
     },
     staleTime: 0,
   });
@@ -49,8 +60,14 @@ export default function Notifications() {
 
   // 알림 읽음 처리
   const markAsReadMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await api.patch(`/notifications/${id}/read`);
+    mutationFn: async ({
+      id,
+      isBroadcast,
+    }: {
+      id: number;
+      isBroadcast: boolean;
+    }) => {
+      await api.patch(`/notifications/${id}/read?isBroadcast=${isBroadcast}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
@@ -75,8 +92,11 @@ export default function Notifications() {
     onError: () => toast.error("전체 읽음 처리에 실패했습니다."),
   });
 
-  const handleMarkAsRead = (id: number) => {
-    markAsReadMutation.mutate(id);
+  const handleMarkAsRead = (notification: Notification) => {
+    markAsReadMutation.mutate({
+      id: notification.id,
+      isBroadcast: notification.isBroadcast,
+    });
   };
 
   const handleMarkAllAsRead = () => {
@@ -85,13 +105,17 @@ export default function Notifications() {
 
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.isRead) {
-      markAsReadMutation.mutate(notification.id);
+      markAsReadMutation.mutate({
+        id: notification.id,
+        isBroadcast: notification.isBroadcast,
+      });
     }
     if (notification.relatedId) {
+      const isBroadcast = notification.isBroadcast;
       const path =
         notification.referenceType === "STUDY"
-          ? `/studies/${notification.relatedId}`
-          : `/post/${notification.relatedId}`;
+          ? `/studies/${notification.relatedId}?isBroadcast=${isBroadcast}`
+          : `/post/${notification.relatedId}?isBroadcast=${isBroadcast}`;
       router.push(path);
     }
   };
@@ -142,7 +166,7 @@ export default function Notifications() {
                   key={notification.id}
                   notification={notification}
                   onClick={() => handleNotificationClick(notification)}
-                  onMarkAsRead={() => handleMarkAsRead(notification.id)}
+                  onMarkAsRead={() => handleMarkAsRead(notification)}
                 />
               ))}
             </div>
@@ -182,12 +206,19 @@ function NotificationItem({
       <div
         className={cn(
           "flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center",
-          notification.type === "LIKE" && "bg-rose-100 text-rose-500",
-          notification.type === "COMMENT" && "bg-blue-100 text-blue-500",
-          notification.type === "REPLY" && "bg-blue-100 text-blue-500",
-          notification.type === "NOTICE" && "bg-amber-100 text-amber-600",
-          !["LIKE", "COMMENT", "REPLY", "NOTICE"].includes(notification.type) &&
-            "bg-muted text-muted-foreground",
+          ["POST_REACTION", "COMMENT_REACTION"].includes(notification.type) &&
+            "bg-rose-100 text-rose-500",
+          ["POST_COMMENT", "COMMENT_REPLY", "COMMENT_MENTION"].includes(
+            notification.type,
+          ) && "bg-blue-100 text-blue-500",
+          notification.type === "ANNOUNCEMENT" && "bg-amber-100 text-amber-600",
+          [
+            "STUDY_APPLICATION",
+            "STUDY_APPROVED",
+            "STUDY_DELETED",
+            "STUDY_RECRUIT_START",
+            "STUDY_RECRUIT_END",
+          ].includes(notification.type) && "bg-emerald-100 text-emerald-600",
         )}
       >
         <Icon className="h-5 w-5" />

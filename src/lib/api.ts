@@ -372,7 +372,8 @@ export const postApi = {
     ),
 
   // 게시글 상세 조회
-  getPost: (id: number) => api.get<any>(`/posts/${id}`),
+  getPost: (id: number, isBroadcast?: boolean) =>
+    api.get<any>(`/posts/${id}`, { isBroadcast }),
 
   // 게시글 생성
   createPost: (data: PostCreateRequest) => api.post<void>("/posts", data),
@@ -559,8 +560,22 @@ export interface Notification {
   isRead: boolean;
   relatedId?: number;
   referenceType?: "POST" | "STUDY";
+  isBroadcast: boolean;
   createdAt: string;
 }
+
+export type NotificationType =
+  | "POST_COMMENT"
+  | "POST_REACTION"
+  | "COMMENT_REPLY"
+  | "COMMENT_REACTION"
+  | "STUDY_APPLICATION"
+  | "STUDY_APPROVED"
+  | "STUDY_DELETED"
+  | "COMMENT_MENTION"
+  | "ANNOUNCEMENT"
+  | "STUDY_RECRUIT_START"
+  | "STUDY_RECRUIT_END";
 
 export interface PaginatedResponse<T> {
   content: T[];
@@ -574,14 +589,20 @@ export interface PaginatedResponse<T> {
 // Notification API 응답 타입
 export interface NotificationResponse {
   id: number;
-  type: string;
-  title: string;
-  content: string;
+  type?: NotificationType;
+  category?: string;
+  title?: string;
+  content?: string;
+  message?: string;
+  target?: string;
   actorId?: number;
-  referenceType: "POST" | "STUDY";
-  referenceId: number;
-  status: "READ" | "UNREAD";
-  createdAt: string;
+  referenceType?: "POST" | "STUDY";
+  referenceId?: number;
+  status?: "READ" | "UNREAD";
+  isRead?: boolean;
+  createdAt?: string;
+  timestamp?: string;
+  isBroadcast?: boolean;
 }
 
 export interface NotificationsResponse {
@@ -593,35 +614,49 @@ export interface UnreadCountResponse {
   count: number;
 }
 
-// 알림 타입 매핑 (백엔드 → 프론트엔드)
-export const mapNotificationType = (type: string): string => {
-  switch (type) {
-    case "POST_COMMENT":
-    case "COMMENT_REPLY":
-    case "COMMENT_MENTION":
-      return "COMMENT";
-    case "POST_REACTION":
-    case "COMMENT_REACTION":
-      return "LIKE";
-    case "ANNOUNCEMENT":
-      return "NOTICE";
-    default:
-      return type;
-  }
-};
-
 // API 응답을 Notification 타입으로 변환
 export const mapNotificationResponse = (
   item: NotificationResponse,
-): Notification => ({
-  id: item.id,
-  type: mapNotificationType(item.type),
-  message: item.content,
-  isRead: item.status === "READ",
-  relatedId: item.referenceId,
-  referenceType: item.referenceType,
-  createdAt: item.createdAt,
-});
+): Notification => {
+  const parsedStudyId = item.target?.match(/STUDY\s*#(\d+)/i)?.[1];
+  const parsedPostId = item.target?.match(/POST\s*#(\d+)/i)?.[1];
+  const parsedReferenceType = parsedStudyId
+    ? "STUDY"
+    : parsedPostId
+      ? "POST"
+      : undefined;
+  const parsedRelatedId = parsedStudyId
+    ? Number(parsedStudyId)
+    : parsedPostId
+      ? Number(parsedPostId)
+      : undefined;
+
+  const normalizedType = item.type ??
+    (item.category === "COMMENT"
+      ? "POST_COMMENT"
+      : item.category === "REACTION"
+        ? "POST_REACTION"
+        : item.category === "ANNOUNCEMENT"
+          ? "ANNOUNCEMENT"
+          : item.category || "POST_COMMENT");
+
+  const message = item.message ?? item.content ?? "";
+  const isBroadcast =
+    item.isBroadcast ??
+    (normalizedType === "ANNOUNCEMENT" ||
+      item.category === "ANNOUNCEMENT");
+
+  return {
+    id: item.id,
+    type: normalizedType,
+    message,
+    isRead: item.isRead ?? item.status === "READ",
+    relatedId: item.referenceId ?? parsedRelatedId,
+    referenceType: item.referenceType ?? parsedReferenceType,
+    isBroadcast,
+    createdAt: item.createdAt ?? item.timestamp ?? new Date().toISOString(),
+  };
+};
 
 // ==================== Study Related Types ====================
 

@@ -1311,8 +1311,6 @@ const ITEM_TYPE_LABEL: Record<ShopItemType, string> = {
   BADGE: '뱃지', PET: '펫', FRAME: '프레임',
 };
 
-const ITEM_TYPE_ORDER: ShopItemType[] = ['PET', 'FRAME', 'BADGE'];
-
 const ITEM_TYPE_DEFAULT_PRICE: Record<ShopItemType, string> = {
   BADGE: '5000',
   FRAME: '12000',
