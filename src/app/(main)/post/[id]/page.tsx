@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Heart, MessageCircle, MoreHorizontal, Trash2, Edit, Send, Pencil, X, Reply, ChevronDown, ChevronUp } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -41,8 +41,10 @@ import { useAuth } from '@/contexts/AuthContext';
 export default function PostDetail() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const isBroadcast = searchParams.get('isBroadcast') === 'true';
 
   const [commentText, setCommentText] = useState('');
   const [mentionUserIds, setMentionUserIds] = useState<number[]>([]);
@@ -76,10 +78,10 @@ export default function PostDetail() {
 
   // Fetch Post
   const { data: post, isLoading: isPostLoading } = useQuery({
-    queryKey: ['post', id],
+    queryKey: ['post', id, isBroadcast],
     queryFn: async () => {
       const [res, reactionRes] = await Promise.all([
-        postApi.getPost(Number(id)),
+        postApi.getPost(Number(id), isBroadcast),
         reactionApi.getPostReaction(Number(id)).catch(() => null)
       ]);
 
