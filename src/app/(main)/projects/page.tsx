@@ -44,6 +44,7 @@ export default function ProjectsPage() {
         size: 50,
         sort: "createdAt,desc",
       }),
+    staleTime: 0,
   });
 
   const projects = (projectsResponse?.content ?? []).map((p) => ({

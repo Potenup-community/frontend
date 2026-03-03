@@ -1311,6 +1311,12 @@ const ITEM_TYPE_LABEL: Record<ShopItemType, string> = {
   BADGE: '뱃지', PET: '펫', FRAME: '프레임',
 };
 
+const ITEM_TYPE_DEFAULT_PRICE: Record<ShopItemType, string> = {
+  BADGE: '5000',
+  FRAME: '12000',
+  PET: '20000',
+};
+
 const ITEM_TYPE_ORDER: ShopItemType[] = ['PET', 'FRAME', 'BADGE'];
 
 type ItemFilterType = 'ALL' | ShopItemType;
@@ -1354,6 +1360,14 @@ function ShopManagementTab() {
     name: '', description: '', price: '', itemType: '',
     consumable: false, durationDays: '', file: null,
   });
+
+  const handleItemTypeChange = (itemType: ShopItemType) => {
+    setFormData((prev) => ({
+      ...prev,
+      itemType,
+      price: ITEM_TYPE_DEFAULT_PRICE[itemType],
+    }));
+  };
 
   const buildFormData = () => {
     const fd = new FormData();
@@ -1506,7 +1520,7 @@ function ShopManagementTab() {
               </div>
               <div className="space-y-2">
                 <Label>타입</Label>
-                <Select value={formData.itemType} onValueChange={(v) => setFormData({ ...formData, itemType: v as ShopItemType })}>
+                <Select value={formData.itemType} onValueChange={(v) => handleItemTypeChange(v as ShopItemType)}>
                   <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="PET">펫</SelectItem>

@@ -24,16 +24,24 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   api,
   NotificationsResponse,
+  NotificationResponse,
   mapNotificationResponse,
   Notification,
 } from "@/lib/api";
 import { toast } from "sonner";
 
 const NOTIFICATION_ICONS: Record<string, React.ElementType> = {
-  COMMENT: MessageCircle,
-  REPLY: MessageCircle,
-  LIKE: Heart,
-  NOTICE: Megaphone,
+  POST_COMMENT: MessageCircle,
+  POST_REACTION: Heart,
+  COMMENT_REPLY: MessageCircle,
+  COMMENT_REACTION: Heart,
+  STUDY_APPLICATION: Bell,
+  STUDY_APPROVED: Check,
+  STUDY_DELETED: Bell,
+  COMMENT_MENTION: MessageCircle,
+  ANNOUNCEMENT: Megaphone,
+  STUDY_RECRUIT_START: Bell,
+  STUDY_RECRUIT_END: Bell,
 };
 
 interface NotificationSheetProps {
@@ -49,8 +57,11 @@ export function NotificationSheet({ trigger }: NotificationSheetProps) {
   const { data, isLoading } = useQuery({
     queryKey: ["notifications"],
     queryFn: async () => {
-      const res = await api.get<NotificationsResponse>("/notifications");
-      return res.notifications.map(mapNotificationResponse);
+      const res = await api.get<NotificationsResponse | NotificationResponse[]>(
+        "/notifications",
+      );
+      const notifications = Array.isArray(res) ? res : (res.notifications ?? []);
+      return notifications.map(mapNotificationResponse);
     },
     enabled: open,
   });
@@ -59,8 +70,14 @@ export function NotificationSheet({ trigger }: NotificationSheetProps) {
 
   // 알림 읽음 처리
   const markAsReadMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await api.patch(`/notifications/${id}/read`);
+    mutationFn: async ({
+      id,
+      isBroadcast,
+    }: {
+      id: number;
+      isBroadcast: boolean;
+    }) => {
+      await api.patch(`/notifications/${id}/read?isBroadcast=${isBroadcast}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
@@ -85,9 +102,12 @@ export function NotificationSheet({ trigger }: NotificationSheetProps) {
     onError: () => toast.error("전체 읽음 처리에 실패했습니다."),
   });
 
-  const handleMarkAsRead = (id: number, e: React.MouseEvent) => {
+  const handleMarkAsRead = (notification: Notification, e: React.MouseEvent) => {
     e.stopPropagation();
-    markAsReadMutation.mutate(id);
+    markAsReadMutation.mutate({
+      id: notification.id,
+      isBroadcast: notification.isBroadcast,
+    });
   };
 
   const handleMarkAllAsRead = () => {
@@ -96,14 +116,18 @@ export function NotificationSheet({ trigger }: NotificationSheetProps) {
 
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.isRead) {
-      markAsReadMutation.mutate(notification.id);
+      markAsReadMutation.mutate({
+        id: notification.id,
+        isBroadcast: notification.isBroadcast,
+      });
     }
     setOpen(false);
     if (notification.relatedId) {
+      const isBroadcast = notification.isBroadcast;
       const path =
         notification.referenceType === "STUDY"
-          ? `/studies/${notification.relatedId}`
-          : `/post/${notification.relatedId}`;
+          ? `/studies/${notification.relatedId}?isBroadcast=${isBroadcast}`
+          : `/post/${notification.relatedId}?isBroadcast=${isBroadcast}`;
       router.push(path);
     }
   };
@@ -168,7 +192,7 @@ export function NotificationSheet({ trigger }: NotificationSheetProps) {
                   key={notification.id}
                   notification={notification}
                   onClick={() => handleNotificationClick(notification)}
-                  onMarkAsRead={(e) => handleMarkAsRead(notification.id, e)}
+                  onMarkAsRead={(e) => handleMarkAsRead(notification, e)}
                 />
               ))}
             </div>
@@ -222,12 +246,19 @@ function NotificationItem({
       <div
         className={cn(
           "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
-          notification.type === "LIKE" && "bg-rose-100 text-rose-500",
-          notification.type === "COMMENT" && "bg-blue-100 text-blue-500",
-          notification.type === "REPLY" && "bg-blue-100 text-blue-500",
-          notification.type === "NOTICE" && "bg-amber-100 text-amber-600",
-          !["LIKE", "COMMENT", "REPLY", "NOTICE"].includes(notification.type) &&
-            "bg-muted text-muted-foreground",
+          ["POST_REACTION", "COMMENT_REACTION"].includes(notification.type) &&
+            "bg-rose-100 text-rose-500",
+          ["POST_COMMENT", "COMMENT_REPLY", "COMMENT_MENTION"].includes(
+            notification.type,
+          ) && "bg-blue-100 text-blue-500",
+          notification.type === "ANNOUNCEMENT" && "bg-amber-100 text-amber-600",
+          [
+            "STUDY_APPLICATION",
+            "STUDY_APPROVED",
+            "STUDY_DELETED",
+            "STUDY_RECRUIT_START",
+            "STUDY_RECRUIT_END",
+          ].includes(notification.type) && "bg-emerald-100 text-emerald-600",
         )}
       >
         <Icon className="h-4 w-4" />
