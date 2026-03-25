@@ -84,8 +84,8 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
       github: project.githubUrl,
       website: project.deployUrl,
     },
-    members: project.members.map((m) => ({
-      id: m.userId.toString(),
+    members: project.members.map((m, index) => ({
+      id: `${m.userId}-${m.position}-${index}`,
       name: m.name,
       role: m.position,
       image: m.profileImageUrl,
