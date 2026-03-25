@@ -172,7 +172,10 @@ export default function ProjectCreatePage() {
         }
         break;
       case "thumbnailImage":
-        setFieldError("thumbnailImage", null);
+        setFieldError(
+          "thumbnailImage",
+          thumbnail ? null : "썸네일 이미지를 업로드해주세요.",
+        );
         break;
       case "techStacks":
         setFieldError(
@@ -305,6 +308,10 @@ export default function ProjectCreatePage() {
       } catch {
         nextFieldErrors.deployUrl = "유효한 배포 URL을 입력해주세요.";
       }
+    }
+
+    if (!thumbnail) {
+      nextFieldErrors.thumbnailImage = "썸네일 이미지를 업로드해주세요.";
     }
 
     if (techStacks.length === 0) {
