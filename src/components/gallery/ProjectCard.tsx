@@ -123,7 +123,7 @@ export function ProjectCard({
   return (
     <Card
       onClick={handleCardClick}
-      className="group flex h-full flex-col overflow-hidden transition-all duration-200 hover:scale-[1.02] hover:shadow-lg hover:cursor-pointer"
+      className="group flex h-full cursor-pointer flex-col overflow-hidden transition-all duration-200 md:hover:scale-[1.02] md:hover:shadow-lg"
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
@@ -145,10 +145,10 @@ export function ProjectCard({
           src={imageUrl}
           alt={title}
           fill
-          className="object-cover opacity-90 transition-all duration-150 group-hover:opacity-100 group-hover:brightness-90"
+          className="object-cover opacity-90 transition-all duration-150 md:group-hover:opacity-100 md:group-hover:brightness-90"
           unoptimized
         />
-        <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all duration-150 group-hover:bg-black/50 group-hover:opacity-100">
+        <div className="pointer-events-none absolute inset-0 hidden items-center justify-center bg-black/0 opacity-0 transition-all duration-150 md:flex md:group-hover:bg-black/50 md:group-hover:opacity-100">
           <span className="text-sm font-semibold text-white">
             프로젝트 보기
           </span>
