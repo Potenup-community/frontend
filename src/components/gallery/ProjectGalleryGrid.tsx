@@ -14,8 +14,8 @@ export function ProjectGalleryGrid({
 }: ProjectGalleryGridProps) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, i) => (
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: 6 }).map((_, i) => (
           <ProjectCardSkeleton key={`skeleton-${i}`} />
         ))}
       </div>
@@ -38,7 +38,7 @@ export function ProjectGalleryGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-3 xl:grid-cols-4">
       {projects.map((project) => (
         <ProjectCard key={project.projectId} {...project} />
       ))}

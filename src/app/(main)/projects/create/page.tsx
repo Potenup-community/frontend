@@ -34,6 +34,24 @@ const createMemberId = () =>
     ? crypto.randomUUID()
     : `member-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
+const isValidGithubInput = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed || /\s/.test(trimmed)) return false;
+
+  return (
+    /^https?:\/\/github\.com\/[^/\s]+(?:\/[^/\s]+)?\/?$/i.test(trimmed) ||
+    /^[^/\s]+(?:\/[^/\s]+)?\/?$/.test(trimmed)
+  );
+};
+
+const normalizeGithubUrl = (value: string) => {
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (/^https?:\/\/github\.com\//i.test(trimmed)) {
+    return trimmed;
+  }
+  return `https://github.com/${trimmed.replace(/^\/+/, "")}`;
+};
+
 export default function ProjectCreatePage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
@@ -135,11 +153,8 @@ export default function ProjectCreatePage() {
       case "githubUrl":
         if (!githubPath.trim()) {
           setFieldError("githubUrl", "GitHub URL은 필수입니다.");
-        } else if (/\s/.test(githubPath)) {
-          setFieldError(
-            "githubUrl",
-            "GitHub 경로에 공백이 포함될 수 없습니다.",
-          );
+        } else if (!isValidGithubInput(githubPath)) {
+          setFieldError("githubUrl", "GitHub URL 형식이 올바르지 않습니다.");
         } else {
           setFieldError("githubUrl", null);
         }
@@ -283,8 +298,8 @@ export default function ProjectCreatePage() {
     }
     if (!githubPath.trim()) {
       nextFieldErrors.githubUrl = "GitHub URL은 필수입니다.";
-    } else if (/\s/.test(githubPath)) {
-      nextFieldErrors.githubUrl = "GitHub 경로에 공백이 포함될 수 없습니다.";
+    } else if (!isValidGithubInput(githubPath)) {
+      nextFieldErrors.githubUrl = "GitHub URL 형식이 올바르지 않습니다.";
     }
 
     if (deployUrl.trim()) {
@@ -330,7 +345,7 @@ export default function ProjectCreatePage() {
       const payload = {
         title,
         description,
-        githubUrl: `https://github.com/${githubPath.trim()}`,
+        githubUrl: normalizeGithubUrl(githubPath),
         deployUrl: deployUrl.trim() || null,
         techStacks,
         members: filteredMembers,
@@ -341,7 +356,9 @@ export default function ProjectCreatePage() {
         "data",
         new Blob([JSON.stringify(payload)], { type: "application/json" }),
       );
-      formData.append("thumbnailImage", thumbnail as File);
+      if (thumbnail) {
+        formData.append("thumbnailImage", thumbnail);
+      }
 
       const response = await api.upload<any>("/projects", formData);
 
@@ -413,7 +430,7 @@ export default function ProjectCreatePage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-3xl px-4 py-10 pb-28 sm:px-6 sm:pb-10 lg:px-8">
       <header className="mb-8">
         <h1 className="text-3xl font-bold">프로젝트 추가</h1>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -477,20 +494,16 @@ export default function ProjectCreatePage() {
             <Input
               value={githubPath}
               onChange={(event) => {
-                const nextValue = event.target.value.replace(
-                  /^https?:\/\/github\.com\//i,
-                  "",
-                );
-                setGithubPath(nextValue);
+                setGithubPath(event.target.value);
                 if (touchedFields.githubUrl) validateField("githubUrl");
                 markDirty("githubUrl");
               }}
               onBlur={() => markTouched("githubUrl")}
-              placeholder="https://github.com/user/repo 또는 user/repo"
+              placeholder="https://github.com/org 또는 https://github.com/org/repo"
               required
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              전체 URL을 붙여넣거나 user/repo 형식으로 입력하세요
+              전체 URL을 붙여넣거나 org 또는 org/repo 형식으로 입력하세요
             </p>
             {shouldShowError("githubUrl") && (
               <p className="mt-1 text-xs text-red-600">
@@ -523,7 +536,7 @@ export default function ProjectCreatePage() {
 
           <div>
             <label className="mb-2 block text-sm font-medium">
-              썸네일 이미지
+              썸네일 이미지 (선택)
             </label>
             <Input
               type="file"
@@ -550,10 +563,9 @@ export default function ProjectCreatePage() {
                 markDirty("thumbnailImage");
               }}
               onBlur={() => markTouched("thumbnailImage")}
-              required
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              최대 5M까지 업로드 가능합니다
+              이미지는 선택사항이며 최대 5M까지 업로드 가능합니다
             </p>
             {shouldShowError("thumbnailImage") && (
               <p className="mt-1 text-xs text-red-600">

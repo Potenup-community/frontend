@@ -15,33 +15,33 @@ export function ProjectHeader({
   onSearchChange,
 }: ProjectHeaderProps) {
   return (
-    <div className="mb-8 space-y-6">
+    <div className="mb-6 space-y-5 md:mb-8 md:space-y-6">
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold leading-tight">
+        <h1 className="text-2xl font-bold leading-tight sm:text-3xl">
           <span className="text-gray-900">포텐업 그라운드,</span>
           <br />
           <span className="text-orange-500">프로젝트 홍보 게시판</span>
         </h1>
-        <p className="text-base text-gray-600">
+        <p className="text-sm text-gray-600 sm:text-base">
           우리 그라운드 구성원들이 만든 멋진 프로젝트들을 만나보세요!
         </p>
       </div>
 
       {/* 검색창 + 추가 버튼 */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative max-w-md flex-1">
+      <div className="flex items-center gap-2 sm:justify-between">
+        <div className="relative max-w-[280px] flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <Input
             type="text"
             placeholder="프로젝트명 검색..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-9"
+            className="h-10 pl-9"
           />
         </div>
         <Button
           asChild
-          className="h-10 px-4 self-start sm:self-auto bg-orange-400 text-white hover:bg-orange-500 hover:text-white"
+          className="h-10 w-10 shrink-0 bg-orange-400 px-0 text-white hover:bg-orange-500 hover:text-white sm:h-10 sm:w-auto sm:px-4"
         >
           <Link
             href="/projects/create"
@@ -49,7 +49,9 @@ export function ProjectHeader({
             className="inline-flex items-center justify-center gap-2"
           >
             <Plus className="h-4 w-4" />
-            <span className="text-sm font-medium">프로젝트 추가</span>
+            <span className="sr-only text-sm font-medium sm:not-sr-only">
+              프로젝트 추가
+            </span>
           </Link>
         </Button>
       </div>
