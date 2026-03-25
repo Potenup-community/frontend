@@ -13,6 +13,36 @@ export interface ProjectTrackFilter {
   trackName: string;
 }
 
+const normalizeTrackFilters = (raw: unknown): ProjectTrackFilter[] => {
+  const list = Array.isArray(raw)
+    ? raw
+    : Array.isArray((raw as { tracks?: unknown[] })?.tracks)
+      ? (raw as { tracks: unknown[] }).tracks
+      : Array.isArray((raw as { content?: unknown[] })?.content)
+        ? (raw as { content: unknown[] }).content
+        : [];
+
+  return list
+    .map((item) => {
+      const track = item as {
+        trackId?: number;
+        id?: number;
+        trackName?: string;
+        name?: string;
+      };
+
+      const trackId = track.trackId ?? track.id;
+      const trackName = track.trackName ?? track.name;
+
+      if (typeof trackId !== "number" || !trackName) {
+        return null;
+      }
+
+      return { trackId, trackName };
+    })
+    .filter((track): track is ProjectTrackFilter => track !== null);
+};
+
 export default function ProjectsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<number | "all">("all");
@@ -58,20 +88,21 @@ export default function ProjectsPage() {
     likedByMe: p.reactedByMe,
   }));
 
-  const { data: tracksResponse } = useQuery({
+  const { data: tracks } = useQuery({
     queryKey: ["project-track-filters"],
-    queryFn: () =>
-      api.get<{ tracks: ProjectTrackFilter[] }>("/projects/tracks"),
+    queryFn: async () => {
+      const response = await api.get<unknown>("/projects/tracks");
+      return normalizeTrackFilters(response);
+    },
+    staleTime: 60 * 1000,
   });
-
-  const tracks = tracksResponse?.tracks ?? [];
 
   const filteredProjects = useMemo(() => {
     return projects;
   }, [projects]);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-2 py-6 pb-24 sm:px-6 sm:py-12 sm:pb-12 lg:px-8">
       <ProjectHeader
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -79,7 +110,7 @@ export default function ProjectsPage() {
       <ProjectFilters
         activeFilter={activeFilter}
         onFilterChange={setActiveFilter}
-        tracks={tracks}
+        tracks={tracks ?? []}
       />
       <ProjectGalleryGrid projects={filteredProjects} isLoading={isLoading} />
     </div>
