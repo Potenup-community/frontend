@@ -25,9 +25,18 @@ export async function POST(req: NextRequest) {
     }
 
     // server() 대신 직접 fetch (Set-Cookie를 얻기 위해)
+    const deviceId = req.headers.get('X-Device-Id')
+    const deviceName = req.headers.get('X-Device-Name')
+
+    const upstreamHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (deviceId) upstreamHeaders['X-Device-Id'] = deviceId
+    if (deviceName) upstreamHeaders['X-Device-Name'] = deviceName
+
     const upstream = await fetch(`${API_BASE}/api/v1/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: upstreamHeaders,
       body: JSON.stringify({ idToken: tokenJson.id_token }),
       cache: 'no-store',
     })
@@ -65,6 +74,14 @@ export async function POST(req: NextRequest) {
 
     for (const sc of setCookies) {
       res.headers.append('set-cookie', sc)
+    }
+
+    // res.cookies.set() 대신 headers.append를 사용해야 함.
+    // res.cookies.set()은 내부적으로 기존 set-cookie 헤더를 재직렬화(headers.set)하므로
+    // 앞서 append한 accessToken/refreshToken 쿠키의 Secure 속성이 소실될 수 있음.
+    if (deviceId) {
+      const oneYear = 60 * 60 * 24 * 365
+      res.headers.append('set-cookie', `deviceId=${deviceId}; Path=/; Max-Age=${oneYear}; SameSite=Lax`)
     }
 
     return res

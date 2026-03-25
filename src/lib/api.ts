@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./constants";
+import { getOrCreateDeviceId, getDeviceName } from "./device";
 
 // API client with credentials included for cookie-based auth
 class ApiClient {
@@ -20,6 +21,8 @@ class ApiClient {
       credentials: "include", // Required for cookie-based auth
       headers: {
         "Content-Type": "application/json",
+        "X-Device-Id": getOrCreateDeviceId(),
+        "X-Device-Name": getDeviceName(),
         ...options.headers,
       },
     };
@@ -136,6 +139,10 @@ class ApiClient {
     const response = await fetch(url, {
       method,
       credentials: "include",
+      headers: {
+        "X-Device-Id": getOrCreateDeviceId(),
+        "X-Device-Name": getDeviceName(),
+      },
       body: formData,
     });
 
@@ -1167,6 +1174,63 @@ export const inventoryApi = {
 
   unequip: (inventoryId: number) =>
     api.patch<void>(`/inventory/${inventoryId}/unequip`),
+};
+
+// ==================== Resume Review Types ====================
+
+export type ResumeReviewStatus = 'PREPARED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+
+export interface ResumeSection {
+  summary: string;
+  skills: string;
+  experience: string;
+  education: string;
+  projects: string;
+  cert: string;
+}
+
+export interface CreateResumeReviewRequest {
+  resumeReviewTitle: string;
+  jdUrl?: string;
+  summary: string;
+  skills: string;
+  experience: string;
+  education: string;
+  projects: string;
+  cert: string;
+}
+
+export interface ResumeReviewResultContent {
+  resumeReviewId: number;
+  userId: number;
+  resumeReviewTitle: string;
+  status: ResumeReviewStatus;
+}
+
+export interface ResumeReviewDetail {
+  resumeReviewId: number;
+  resumeReviewTitle: string;
+  resumeSections: ResumeSection;
+  resultJason?: string;
+  completedAt?: string;
+  status: ResumeReviewStatus;
+  createdAt: string;
+}
+
+// ==================== Resume Review API Functions ====================
+
+export const resumeReviewApi = {
+  // 내 이력서 첨삭 목록 조회
+  getMyReviews: () =>
+    api.get<{ contents: ResumeReviewResultContent[] }>('/resume-reviews'),
+
+  // 이력서 첨삭 요청
+  createReview: (data: CreateResumeReviewRequest) =>
+    api.post<{ resumeReviewId: number; status: ResumeReviewStatus }>('/resume-reviews', data),
+
+  // 이력서 첨삭 상세 조회
+  getReview: (id: number) =>
+    api.get<ResumeReviewDetail>(`/resume-reviews/${id}`),
 };
 
 // ==================== Admin API Functions ====================

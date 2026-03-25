@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
+import { getOrCreateDeviceId, getDeviceName } from '@/lib/device'
 
 export function useGoogleSignin() {
   const router = useRouter()
@@ -21,6 +22,8 @@ export function useGoogleSignin() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'X-Device-Id': getOrCreateDeviceId(),
+            'X-Device-Name': getDeviceName(),
           },
           body: JSON.stringify({ code }),
           cache: 'no-store',
