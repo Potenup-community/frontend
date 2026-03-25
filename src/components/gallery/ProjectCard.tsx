@@ -136,7 +136,7 @@ export function ProjectCard({
       <div className="relative aspect-video w-full overflow-hidden bg-muted">
         {/* 트랙 배지 - 왼쪽 상단 */}
         {trackNames && trackNames.length > 0 && (
-          <Badge className="absolute left-3 top-3 z-10 bg-gray-500/90 text-white hover:bg-gray-600/90">
+          <Badge className="absolute left-3 top-3 z-10 border border-primary/20 bg-primary/10 text-primary hover:bg-primary/15">
             {trackNames[0]}
           </Badge>
         )}
@@ -178,7 +178,7 @@ export function ProjectCard({
             techStacks.map((tech) => (
               <Badge
                 key={tech}
-                className="bg-gray-200 text-gray-700 hover:bg-gray-300 text-xs"
+                className="border border-primary/20 bg-primary/10 px-2.5 text-primary hover:bg-primary/15 text-xs"
               >
                 {tech}
               </Badge>
@@ -209,7 +209,7 @@ export function ProjectCard({
               {count}
             </span>
           </button>
-          <span className="text-orange-500">→</span>
+          <span className="mt-[1px] leading-none text-orange-500">→</span>
         </div>
       </CardFooter>
     </Card>
