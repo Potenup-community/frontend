@@ -191,6 +191,10 @@
   .focus-ring {
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
+
+  .post-markdown {
+    @apply prose prose-slate max-w-none dark:prose-invert prose-headings:font-bold prose-h1:text-4xl prose-h2:text-3xl prose-p:text-lg prose-p:leading-relaxed prose-li:leading-relaxed prose-blockquote:leading-relaxed;
+  }
 }
 
 @layer utilities {
@@ -348,4 +352,3 @@
 .group:hover .logo-text-fill {
   animation: wave-fill-up 1s ease-out forwards;
 }
-

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Heart, MessageCircle, Eye } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,14 +10,61 @@ import { TopicBadge } from '@/components/ui/TopicBadge';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import type { PostSummary } from '@/lib/api';
+import { reactionApi, type PostSummary } from '@/lib/api';
+import { useMutation } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 interface PostCardProps {
   post: PostSummary;
   className?: string;
+  titleClassName?: string;
 }
 
-export function PostCard({ post, className }: PostCardProps) {
+export function PostCard({ post, className, titleClassName }: PostCardProps) {
+  const [isReacted, setIsReacted] = useState(post.isReacted);
+  const [reactionCount, setReactionCount] = useState(post.reactionCount);
+
+  useEffect(() => {
+    setIsReacted(post.isReacted);
+    setReactionCount(post.reactionCount);
+  }, [post.isReacted, post.reactionCount]);
+
+  const likeMutation = useMutation({
+    mutationFn: async (nextReacted: boolean) => {
+      if (nextReacted) {
+        await reactionApi.addReaction({
+          targetType: 'POST',
+          targetId: post.id,
+          reactionType: 'LIKE',
+        });
+        return;
+      }
+
+      await reactionApi.removeReaction({
+        targetType: 'POST',
+        targetId: post.id,
+        reactionType: 'LIKE',
+      });
+    },
+    onError: () => {
+      setIsReacted(post.isReacted);
+      setReactionCount(post.reactionCount);
+      toast.error('좋아요 처리에 실패했습니다.');
+    },
+  });
+
+  const handleLikeClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (likeMutation.isPending) return;
+
+    const nextReacted = !isReacted;
+    setIsReacted(nextReacted);
+    setReactionCount((prev) => (nextReacted ? prev + 1 : Math.max(0, prev - 1)));
+    likeMutation.mutate(nextReacted);
+  };
+
   const timeAgo = formatDistanceToNow(new Date(post.createdAt), {
     addSuffix: true,
     locale: ko,
@@ -53,7 +101,7 @@ export function PostCard({ post, className }: PostCardProps) {
 
           {/* Content */}
           <div className="mb-4">
-            <h3 className="font-semibold text-base mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+            <h3 className={cn('font-semibold text-base mb-2 line-clamp-2 group-hover:text-primary transition-colors', titleClassName)}>
               {post.title}
             </h3>
             <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
@@ -63,13 +111,19 @@ export function PostCard({ post, className }: PostCardProps) {
 
           {/* Footer */}
           <div className="flex items-center gap-5 text-muted-foreground pt-3 border-t border-border/50">
-            <div className={cn(
-              'flex items-center gap-1.5 text-sm transition-colors',
-              post.isReacted && 'text-rose-500'
-            )}>
-              <Heart className={cn('h-4 w-4', post.isReacted && 'fill-current')} />
-              <span>{post.reactionCount}</span>
-            </div>
+            <button
+              type="button"
+              onClick={handleLikeClick}
+              disabled={likeMutation.isPending}
+              className={cn(
+                'flex items-center gap-1.5 text-sm transition-colors hover:text-rose-500',
+                isReacted && 'text-rose-500',
+                likeMutation.isPending && 'opacity-70'
+              )}
+            >
+              <Heart className={cn('h-4 w-4', isReacted && 'fill-current')} />
+              <span>{reactionCount}</span>
+            </button>
             <div className="flex items-center gap-1.5 text-sm">
               <MessageCircle className="h-4 w-4" />
               <span>{post.commentCount}</span>

@@ -334,7 +334,7 @@ export default function PostEdit() {
           "flex-1 h-full overflow-y-auto bg-muted/20 p-6 md:px-16 md:py-12",
           isMobile && activeTab === 'write' && "hidden"
         )}>
-          <div className="prose prose-slate max-w-none dark:prose-invert prose-headings:font-bold prose-h1:text-4xl prose-h2:text-3xl prose-p:text-lg prose-p:leading-relaxed">
+          <div className="post-markdown">
             <h1 className="mb-8 text-4xl font-bold break-words">{title || "제목 없음"}</h1>
             {content ? (
               <ReactMarkdown

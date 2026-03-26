@@ -250,50 +250,55 @@ export default function PostDetail() {
       {/* Post Content */}
       <Card>
         <CardContent className="p-6">
-          {/* Author & Meta */}
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-3">
+          {/* Minimal Header */}
+          <div className="mb-5 pb-4 border-b border-border/60">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <h2 className="text-2xl md:text-[1.75rem] font-bold leading-tight tracking-[-0.01em] break-words">
+                {post.title}
+              </h2>
+              <div className="flex items-center gap-2 shrink-0">
+                <TopicBadge topic={post.topic} />
+                {post.isAuthor && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                        <MoreHorizontal className="h-4.5 w-4.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => router.push(`/post/${post.id}/edit`)}>
+                        <Edit className="h-4 w-4 mr-2" />수정
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive">
+                        <Trash2 className="h-4 w-4 mr-2" />삭제
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-center gap-2.5 min-w-0">
               <UserAvatar
                 src={post.author.profileImageUrl}
                 name={post.author.name}
-                className="h-12 w-12"
+                className="h-7 w-7"
                 frameSrc={post.items?.find((i) => i.itemType === 'FRAME')?.imageUrl}
               />
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <p className="font-medium">{post.author.name}</p>
-                  <EquippedBadge items={post.items} className="h-[15px] w-auto" />
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  {post.author.trackName && <span>{post.author.trackName}</span>}
-                  {post.author.trackName && <span>·</span>}
-                  <span>{timeAgo}</span>
-                </div>
+              <div className="flex items-center gap-1.5 min-w-0 text-xs text-muted-foreground">
+                <span className="text-foreground font-medium truncate">{post.author.name}</span>
+                <EquippedBadge items={post.items} className="h-[12px] w-auto shrink-0" />
+                {post.author.trackName && <span className="shrink-0">· {post.author.trackName}</span>}
+                <span className="shrink-0">· {timeAgo}</span>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <TopicBadge topic={post.topic} />
-              {post.isAuthor && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon"><MoreHorizontal className="h-5 w-5" /></Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => router.push(`/post/${post.id}/edit`)}>
-                      <Edit className="h-4 w-4 mr-2" />수정
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive">
-                      <Trash2 className="h-4 w-4 mr-2" />삭제
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
+
+            {/* keep spacing with content */}
+            <div className="mt-0.5" />
           </div>
 
-          {/* Title & Content */}
-          <h2 className="text-xl font-bold mb-4">{post.title}</h2>
-          <div className="prose prose-sm max-w-none mb-6 whitespace-pre-wrap">
+          {/* Content */}
+          <div className="post-markdown mb-6">
             <ReactMarkdown
               remarkPlugins={[remarkGfm, remarkBreaks]}
               urlTransform={(value) => value}
