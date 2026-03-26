@@ -22,6 +22,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiError, reactionApi } from "@/lib/api";
+import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
+import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 
 export interface ProjectDetailProps {
@@ -76,6 +79,15 @@ export function ProjectDetailView({
   };
 
   const imageUrl = normalizeImageUrl(thumbnailImageUrl);
+  const descriptionPreview =
+    description
+      .split("\n")
+      .map((line) => line.trim())
+      .find(Boolean) ?? "";
+  const plainDescriptionPreview = descriptionPreview
+    .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
+    .replace(/[*_`>#~!-]/g, "")
+    .trim();
 
   // 수정/삭제 권한 체크 (본인 또는 ADMIN)
   const canEdit = user && (user.id === userId || user.role === "ADMIN");
@@ -206,9 +218,13 @@ export function ProjectDetailView({
         <div className="relative -mt-16 mb-10 md:mb-12">
           <div className="rounded-lg border border-border bg-background p-6 shadow-lg md:p-8">
             <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 <h1 className="mb-2 text-3xl font-bold md:text-4xl">{title}</h1>
-                <p className="text-lg text-muted-foreground">{description}</p>
+                {plainDescriptionPreview && (
+                  <p className="max-w-full truncate text-lg text-muted-foreground">
+                    {plainDescriptionPreview}
+                  </p>
+                )}
               </div>
               <div className="flex flex-col items-end gap-3">
                 {trackNames && trackNames.length > 0 && (
@@ -290,9 +306,11 @@ export function ProjectDetailView({
         <div className="mb-10 md:mb-12">
           <h2 className="mb-4 text-2xl font-bold">프로젝트 소개</h2>
           <div className="prose prose-sm max-w-none dark:prose-invert">
-            <p className="whitespace-pre-wrap text-base leading-relaxed text-muted-foreground">
-              {description}
-            </p>
+            <div className="text-base leading-relaxed text-muted-foreground">
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+                {description}
+              </ReactMarkdown>
+            </div>
           </div>
         </div>
 
@@ -303,7 +321,7 @@ export function ProjectDetailView({
             {techStacks.map((tech) => (
               <Badge
                 key={tech}
-                className="bg-gray-200 px-3 py-1 text-sm text-gray-700 hover:bg-gray-300"
+                className="border border-primary/20 bg-primary/10 px-3 py-1 text-sm text-primary hover:bg-primary/15"
               >
                 {tech}
               </Badge>
@@ -390,7 +408,7 @@ export function ProjectDetailView({
         <Separator className="my-10 md:my-12" />
 
         {/* Back Navigation */}
-        <div className="pb-10 md:pb-12">
+        <div className="pb-28 sm:pb-12">
           <Button asChild variant="outline">
             <Link href="/projects">← 모든 프로젝트로</Link>
           </Button>

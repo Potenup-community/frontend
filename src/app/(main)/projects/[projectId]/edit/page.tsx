@@ -8,9 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiError, AdminTrack, userApi, UserSummary } from "@/lib/api";
 import { Loader2, FolderEdit } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
+import remarkGfm from "remark-gfm";
 
 interface MemberDraft {
   id: string;
@@ -60,6 +64,9 @@ export default function ProjectEditPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [descriptionTab, setDescriptionTab] = useState<"write" | "preview">(
+    "write",
+  );
   const [githubPath, setGithubPath] = useState("");
   const [deployUrl, setDeployUrl] = useState("");
   const [thumbnail, setThumbnail] = useState<File | null>(null);
@@ -608,18 +615,47 @@ export default function ProjectEditPage() {
             <label className="mb-2 block text-sm font-medium">
               프로젝트 설명
             </label>
-            <Textarea
-              value={description}
-              onChange={(event) => {
-                setDescription(event.target.value);
-                if (touchedFields.description) validateField("description");
-                markDirty("description");
-              }}
-              onBlur={() => markTouched("description")}
-              placeholder="프로젝트를 간단히 소개해주세요"
-              rows={4}
-              required
-            />
+            <Tabs
+              value={descriptionTab}
+              onValueChange={(value) =>
+                setDescriptionTab(value as "write" | "preview")
+              }
+              className="w-full"
+            >
+              <TabsList className="mb-2">
+                <TabsTrigger value="write">작성</TabsTrigger>
+                <TabsTrigger value="preview">미리보기</TabsTrigger>
+              </TabsList>
+              <TabsContent value="write" className="mt-0">
+                <Textarea
+                  value={description}
+                  onChange={(event) => {
+                    setDescription(event.target.value);
+                    if (touchedFields.description) validateField("description");
+                    markDirty("description");
+                  }}
+                  onBlur={() => markTouched("description")}
+                  placeholder="마크다운으로 프로젝트 소개를 작성해주세요"
+                  rows={6}
+                  required
+                />
+              </TabsContent>
+              <TabsContent value="preview" className="mt-0">
+                <div className="min-h-[152px] rounded-md border border-input bg-background px-3 py-2">
+                  {description.trim() ? (
+                    <div className="prose prose-sm max-w-none dark:prose-invert">
+                      <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+                        {description}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      작성한 내용이 여기 미리보기로 표시됩니다.
+                    </p>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
             {shouldShowError("description") && (
               <p className="mt-1 text-xs text-red-600">
                 {fieldErrors.description}
@@ -674,7 +710,7 @@ export default function ProjectEditPage() {
 
           <div>
             <label className="mb-2 block text-sm font-medium">
-              썸네일 이미지 (선택)
+              썸네일 이미지
             </label>
             <Input
               type="file"
@@ -759,13 +795,13 @@ export default function ProjectEditPage() {
             {techStacks.map((tech) => (
               <Badge
                 key={tech}
-                className="bg-gray-200 text-gray-700 hover:bg-gray-300"
+                className="border border-primary/20 bg-primary/10 text-primary hover:bg-primary/15"
               >
                 {tech}
                 <button
                   type="button"
                   onClick={() => removeTech(tech)}
-                  className="ml-2 text-xs text-gray-500 hover:text-gray-700"
+                  className="ml-2 text-xs text-primary/70 hover:text-primary"
                 >
                   ✕
                 </button>
@@ -783,7 +819,6 @@ export default function ProjectEditPage() {
               멤버 추가
             </Button>
           </div>
-
           {members.length === 0 && (
             <p className="text-sm text-muted-foreground">
               필요한 경우 멤버 정보를 추가해주세요.

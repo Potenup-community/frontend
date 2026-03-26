@@ -61,7 +61,7 @@ export default function ProjectsPage() {
   }
 
   const { data: projectsResponse, isLoading } = useQuery({
-    queryKey: ["projects", activeFilter, searchQuery],
+    queryKey: ["projects", activeFilter],
     queryFn: () =>
       api.get<{
         content: BackendProjectSummary[];
@@ -69,7 +69,6 @@ export default function ProjectsPage() {
         totalPages: number;
       }>("/projects", {
         trackId: activeFilter !== "all" ? activeFilter : undefined,
-        keyword: searchQuery || undefined,
         page: 0,
         size: 50,
         sort: "createdAt,desc",
@@ -88,7 +87,11 @@ export default function ProjectsPage() {
     likedByMe: p.reactedByMe,
   }));
 
-  const { data: tracks } = useQuery({
+  const {
+    data: tracks,
+    isError: isTracksError,
+    error: tracksError,
+  } = useQuery({
     queryKey: ["project-track-filters"],
     queryFn: async () => {
       const response = await api.get<unknown>("/projects/tracks");
@@ -97,9 +100,28 @@ export default function ProjectsPage() {
     staleTime: 60 * 1000,
   });
 
+  if (isTracksError) {
+    throw tracksError ?? new Error("트랙 목록 조회에 실패했습니다.");
+  }
+
   const filteredProjects = useMemo(() => {
-    return projects;
-  }, [projects]);
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return projects;
+    }
+
+    return projects.filter((project) => {
+      const inTitle = project.title.toLowerCase().includes(normalizedQuery);
+      const inTracks = (project.trackNames ?? []).some((track) =>
+        track.toLowerCase().includes(normalizedQuery),
+      );
+      const inTechStacks = (project.techStacks ?? []).some((tech) =>
+        tech.toLowerCase().includes(normalizedQuery),
+      );
+
+      return inTitle || inTracks || inTechStacks;
+    });
+  }, [projects, searchQuery]);
 
   return (
     <div className="mx-auto max-w-7xl px-2 py-6 pb-24 sm:px-6 sm:py-12 sm:pb-12 lg:px-8">

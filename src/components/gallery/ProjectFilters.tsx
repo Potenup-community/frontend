@@ -78,7 +78,7 @@ export function ProjectFilters({
                 className={cn(
                   "rounded-md px-4 py-2.5 text-sm font-medium transition-colors",
                   activeFilter === "all"
-                    ? "bg-primary/10 text-primary"
+                    ? "border border-primary/25 bg-primary/10 text-primary"
                     : "bg-muted text-muted-foreground hover:bg-primary/5 hover:text-primary",
                 )}
               >
@@ -92,7 +92,7 @@ export function ProjectFilters({
                   className={cn(
                     "rounded-md px-4 py-2.5 text-sm font-medium transition-colors",
                     activeFilter === track.trackId
-                      ? "bg-primary/10 text-primary"
+                      ? "border border-primary/25 bg-primary/10 text-primary"
                       : "bg-muted text-muted-foreground hover:bg-primary/5 hover:text-primary",
                   )}
                 >
@@ -100,23 +100,18 @@ export function ProjectFilters({
                 </button>
               ))}
             </div>
-            {tracks.length === 0 && (
-              <p className="mt-3 text-xs text-muted-foreground">
-                트랙 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.
-              </p>
-            )}
           </SheetContent>
         </Sheet>
       </div>
 
-      <div className="mb-6 hidden flex-wrap items-center gap-3 md:flex">
+      <div className="mb-6 hidden flex-wrap items-center gap-6 border-b border-border md:flex">
         <button
           onClick={() => onFilterChange("all")}
           className={cn(
-            "rounded-md px-4 py-2 text-sm font-medium transition-colors",
+            "relative -mb-px border-b-2 border-transparent px-1 pb-3 text-base font-semibold transition-colors",
             activeFilter === "all"
-              ? "bg-primary/10 text-primary"
-              : "bg-muted text-muted-foreground hover:bg-primary/5 hover:text-primary",
+              ? "border-primary text-primary"
+              : "text-muted-foreground hover:border-primary/40 hover:text-primary",
           )}
         >
           전체
@@ -127,10 +122,10 @@ export function ProjectFilters({
             key={track.trackId}
             onClick={() => onFilterChange(track.trackId as number)}
             className={cn(
-              "rounded-md px-4 py-2 text-sm font-medium transition-colors",
+              "relative -mb-px border-b-2 border-transparent px-1 pb-3 text-base font-semibold transition-colors",
               activeFilter === track.trackId
-                ? "bg-primary/10 text-primary"
-                : "bg-muted text-muted-foreground hover:bg-primary/5 hover:text-primary",
+                ? "border-primary text-primary"
+                : "text-muted-foreground hover:border-primary/40 hover:text-primary",
             )}
           >
             {track.trackName}
@@ -144,12 +139,6 @@ export function ProjectFilters({
           >
             초기화
           </button>
-        )}
-
-        {tracks.length === 0 && (
-          <span className="text-sm text-muted-foreground">
-            트랙 목록을 불러오지 못했습니다.
-          </span>
         )}
       </div>
     </>
