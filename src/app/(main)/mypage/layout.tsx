@@ -25,7 +25,7 @@ export default function MyPageLayout({ children }: { children: React.ReactNode }
     { value: 'study', label: '스터디 신청', icon: Users, href: '/mypage/study' },
     { value: 'points', label: '포인트', icon: Coins, href: '/mypage/points' },
     { value: 'inventory', label: '인벤토리', icon: Package, href: '/mypage/inventory' },
-    { value: 'resume-review', label: '이력서 첨삭', icon: ClipboardList, href: '/mypage/resume-review' },
+    { value: 'resume-review', label: '내 이력서 첨삭', icon: ClipboardList, href: '/mypage/resume-review' },
   ];
 
   const currentTab = pathname?.split('/')[2] || 'post';
