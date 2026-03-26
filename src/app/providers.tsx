@@ -6,6 +6,7 @@ import { ProfilePreviewProvider } from "@/contexts/ProfilePreviewContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useState } from "react";
 import ReactGoogleProvider from "@/providers/ReactGoogleProvider";
+import { ThemeProvider } from "next-themes";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -20,15 +21,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ReactGoogleProvider>
-        <AuthProvider>
-          <ProfilePreviewProvider>
-            <TooltipProvider>
-              {children}
-            </TooltipProvider>
-          </ProfilePreviewProvider>
-        </AuthProvider>
-      </ReactGoogleProvider>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <ReactGoogleProvider>
+          <AuthProvider>
+            <ProfilePreviewProvider>
+              <TooltipProvider>
+                {children}
+              </TooltipProvider>
+            </ProfilePreviewProvider>
+          </AuthProvider>
+        </ReactGoogleProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
