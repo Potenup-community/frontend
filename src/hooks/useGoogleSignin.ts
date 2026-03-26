@@ -65,6 +65,14 @@ export function useGoogleSignin() {
       toast.error('Google 로그인에 실패했습니다.')
       setIsLoading(false)
     },
+    onNonOAuthError: (err) => {
+      setIsLoading(false)
+      if (err.type === 'popup_closed') {
+        return
+      }
+      console.error('Google non-oauth error', err)
+      toast.error('Google 로그인 창을 여는 중 오류가 발생했습니다.')
+    },
   })
 
   return {
