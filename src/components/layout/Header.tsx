@@ -11,6 +11,7 @@ import { api, UnreadCountResponse } from "@/lib/api";
 import { Logo } from "./Logo";
 import { NotificationSheet } from "@/components/notifications/NotificationSheet";
 import { useQuery } from "@tanstack/react-query";
+import { ThemeToggle } from "./ThemeToggle";
 
 const NAV_TABS = [
   { href: "/", label: "홈", topic: null },
@@ -129,9 +130,11 @@ export function Header() {
 
             {isAuthenticated ? (
               <>
+                <ThemeToggle />
+
                 <NotificationSheet
                   trigger={
-                    <Button variant="ghost" size="icon" className="relative">
+                    <Button variant="ghost" size="icon" className="relative dark:hover:bg-transparent">
                       <Bell className="h-5 w-5" />
                       {unreadCount > 0 && (
                         <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
@@ -146,7 +149,7 @@ export function Header() {
                   onClick={() => router.push("/post/write")}
                   variant="linearPrimary"
                   size="sm"
-                  className="hidden sm:flex gap-2"
+                  className="hidden sm:flex gap-2 dark:hover:bg-transparent"
                 >
                   <PenSquare className="h-4 w-4" />
                   글쓰기
