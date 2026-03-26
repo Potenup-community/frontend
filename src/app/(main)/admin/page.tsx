@@ -275,31 +275,64 @@ function UserManagementTab() {
     },
   });
 
-  const { data: pendingUsers, isLoading: pendingLoading } = useQuery({
+  const {
+    data: pendingData,
+    isLoading: pendingLoading,
+    hasNextPage: pendingHasNextPage,
+    fetchNextPage: fetchNextPendingPage,
+    isFetchingNextPage: pendingFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['admin', 'users', 'PENDING', selectedTrack],
-    queryFn: async () => {
+    queryFn: async ({ pageParam = 0 }) => {
+      const page = typeof pageParam === 'number' ? pageParam : 0;
       const res = await adminApi.getUsers({
         requestStatus: 'PENDING',
         trackId: selectedTrack || undefined,
-        page: 0,
-        size: 20
+        page,
+        size: 20,
       });
-      return (res.content || []) as AdminUser[];
+      return {
+        content: (res.content || []) as AdminUser[],
+        pageNumber: res.pageNumber ?? page,
+        pageSize: res.pageSize ?? 20,
+        hasNext: Boolean(res.hasNext),
+        totalElements: res.totalElements,
+      } as AdminUsersResponse;
     },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => (lastPage.hasNext ? lastPage.pageNumber + 1 : undefined),
   });
 
-  const { data: approvedUsers, isLoading: approvedLoading } = useQuery({
+  const {
+    data: approvedData,
+    isLoading: approvedLoading,
+    hasNextPage: approvedHasNextPage,
+    fetchNextPage: fetchNextApprovedPage,
+    isFetchingNextPage: approvedFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['admin', 'users', 'APPROVED', selectedTrack],
-    queryFn: async () => {
+    queryFn: async ({ pageParam = 0 }) => {
+      const page = typeof pageParam === 'number' ? pageParam : 0;
       const res = await adminApi.getUsers({
         requestStatus: 'ACCEPTED',
         trackId: selectedTrack || undefined,
-        page: 0,
-        size: 20
+        page,
+        size: 20,
       });
-      return (res.content || []) as AdminUser[];
+      return {
+        content: (res.content || []) as AdminUser[],
+        pageNumber: res.pageNumber ?? page,
+        pageSize: res.pageSize ?? 20,
+        hasNext: Boolean(res.hasNext),
+        totalElements: res.totalElements,
+      } as AdminUsersResponse;
     },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => (lastPage.hasNext ? lastPage.pageNumber + 1 : undefined),
   });
+
+  const pendingUsers = pendingData?.pages.flatMap((page) => page.content || []) || [];
+  const approvedUsers = approvedData?.pages.flatMap((page) => page.content || []) || [];
 
   const decisionMutation = useMutation({
     mutationFn: async ({ userId, decision, role }: { userId: number; decision: DecisionType; role: string }) => {
@@ -383,8 +416,8 @@ function UserManagementTab() {
     }
   };
 
-  const pendingCount = pendingUsers?.length || 0;
-  const approvedCount = approvedUsers?.length || 0;
+  const pendingCount = pendingData?.pages?.[0]?.totalElements ?? pendingUsers.length;
+  const approvedCount = approvedData?.pages?.[0]?.totalElements ?? approvedUsers.length;
 
   return (
     <div className="space-y-6">
@@ -461,7 +494,7 @@ function UserManagementTab() {
           <TabsContent value="pending" className="mt-0">
             {pendingLoading ? (
               <UserListSkeleton />
-            ) : pendingUsers?.length === 0 ? (
+            ) : pendingUsers.length === 0 ? (
               <EmptyState
                 icon={Clock}
                 title="대기 중인 유저가 없습니다"
@@ -479,7 +512,7 @@ function UserManagementTab() {
                         id="select-all"
                       />
                       <Label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
-                        전체 선택 ({pendingUsers?.length}명)
+                        전체 선택 ({pendingUsers.length}명)
                       </Label>
                     </div>
 
@@ -509,7 +542,7 @@ function UserManagementTab() {
                 </Card>
 
                 <div className="grid gap-3">
-                  {pendingUsers?.map((adminUser) => (
+                  {pendingUsers.map((adminUser) => (
                     <UserCard
                       key={adminUser.userId}
                       user={adminUser}
@@ -521,6 +554,25 @@ function UserManagementTab() {
                     />
                   ))}
                 </div>
+
+                {pendingHasNextPage && (
+                  <div className="flex justify-center pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => fetchNextPendingPage()}
+                      disabled={pendingFetchingNextPage}
+                    >
+                      {pendingFetchingNextPage ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          불러오는 중...
+                        </>
+                      ) : (
+                        '더 보기'
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </TabsContent>
@@ -528,17 +580,37 @@ function UserManagementTab() {
           <TabsContent value="approved" className="mt-0">
             {approvedLoading ? (
               <UserListSkeleton />
-            ) : approvedUsers?.length === 0 ? (
+            ) : approvedUsers.length === 0 ? (
               <EmptyState
                 icon={Users}
                 title="승인된 유저가 없습니다"
                 description="아직 승인된 유저가 없습니다."
               />
             ) : (
-              <div className="grid gap-3 mt-4">
-                {approvedUsers?.map((adminUser) => (
-                  <UserCard key={adminUser.userId} user={adminUser} />
-                ))}
+              <div className="space-y-3 mt-4">
+                <div className="grid gap-3">
+                  {approvedUsers.map((adminUser) => (
+                    <UserCard key={adminUser.userId} user={adminUser} />
+                  ))}
+                </div>
+                {approvedHasNextPage && (
+                  <div className="flex justify-center pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => fetchNextApprovedPage()}
+                      disabled={approvedFetchingNextPage}
+                    >
+                      {approvedFetchingNextPage ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          불러오는 중...
+                        </>
+                      ) : (
+                        '더 보기'
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </TabsContent>
