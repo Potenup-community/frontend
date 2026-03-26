@@ -18,7 +18,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (idToken: string) => Promise<{ role: string } | null>;
+  login: (idToken: string) => Promise<{ role: string }>;
   mockLogin: () => void;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
