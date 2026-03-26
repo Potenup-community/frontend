@@ -8,6 +8,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useMutation } from '@tanstack/react-query';
 import { resumeReviewApi, CreateResumeReviewRequest } from '@/lib/api';
 import { toast } from 'sonner';
@@ -59,6 +69,7 @@ const SECTION_CONFIG: Array<{
 
 export default function NewResumeReviewPage() {
   const router = useRouter();
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [form, setForm] = useState<CreateResumeReviewRequest>({
     resumeReviewTitle: '',
     jdUrl: '',
@@ -191,10 +202,21 @@ export default function NewResumeReviewPage() {
         </Card>
 
         <div className="flex gap-3 justify-end">
-          <Button type="button" variant="outline" asChild>
-            <Link href="/mypage/resume-review">취소</Link>
+          <Button
+            type="button"
+            variant="secondary"
+            className="font-semibold"
+            onClick={() => setCancelDialogOpen(true)}
+            disabled={mutation.isPending}
+          >
+            취소
           </Button>
-          <Button type="submit" disabled={mutation.isPending}>
+          <Button
+            type="submit"
+            variant="secondary"
+            disabled={mutation.isPending}
+            className="font-semibold"
+          >
             {mutation.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -206,6 +228,23 @@ export default function NewResumeReviewPage() {
           </Button>
         </div>
       </form>
+
+      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>작성 취소</AlertDialogTitle>
+            <AlertDialogDescription>
+              지금 취소하면 입력한 정보는 저장되지 않습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>계속 작성</AlertDialogCancel>
+            <AlertDialogAction onClick={() => router.push('/')}>
+              확인
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
