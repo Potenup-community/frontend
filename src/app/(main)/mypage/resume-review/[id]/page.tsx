@@ -1,6 +1,6 @@
 'use client';
 
-import React, { use, useState } from 'react';
+import React, { use, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -22,6 +22,7 @@ import { resumeReviewApi, ResumeReviewStatus, ResumeSection } from '@/lib/api';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 const STATUS_CONFIG: Record<
   ResumeReviewStatus,
@@ -49,6 +50,7 @@ export default function ResumeReviewDetailPage({
 }) {
   const { id } = use(params);
   const reviewId = Number(id);
+  const prevStatusRef = useRef<ResumeReviewStatus | null>(null);
 
   const { data: review, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['resume-review', reviewId],
@@ -78,6 +80,14 @@ export default function ResumeReviewDetailPage({
   const config = STATUS_CONFIG[review.status];
   const StatusIcon = config.icon;
   const parsedResult = tryParseResult(review.resultJason);
+
+  useEffect(() => {
+    const prevStatus = prevStatusRef.current;
+    if (prevStatus && prevStatus !== 'COMPLETED' && review.status === 'COMPLETED') {
+      toast.success('이력서 첨삭이 완료되었습니다.');
+    }
+    prevStatusRef.current = review.status;
+  }, [review.status]);
 
   return (
     <div className="space-y-6">

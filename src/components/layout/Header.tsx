@@ -21,6 +21,7 @@ const NAV_TABS = [
     topic: ["KNOWLEDGE", "EMPLOYMENT_TIP"],
   },
   { href: "/?topic=small_talk", label: "자유게시판", topic: "SMALL_TALK" },
+  { href: "/resume-review/new", label: "이력서 첨삭", topic: null },
   { href: "/studies", label: "스터디", topic: null },
   { href: "/projects", label: "프로젝트", topic: null },
 ];
@@ -54,6 +55,13 @@ export function Header() {
 
     if (tab.href === "/projects") {
       return pathname.startsWith("/projects");
+    }
+
+    if (tab.href === "/resume-review/new") {
+      return (
+        pathname.startsWith("/resume-review") ||
+        pathname.startsWith("/mypage/resume-review")
+      );
     }
 
     if (pathname !== "/") return false;

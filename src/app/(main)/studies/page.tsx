@@ -118,7 +118,8 @@ export default function Studies() {
       {/* Filters */}
       <div className="space-y-2">
         {/* 상태 탭 필터 */}
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="inline-flex border-b border-border">
+          <div className="flex flex-wrap items-center gap-1 -mb-px">
           {[
             { value: 'all' as const, label: '전체' },
             { value: 'RECRUITING' as const, label: STUDY_STATUS_LABELS.RECRUITING },
@@ -130,15 +131,16 @@ export default function Studies() {
               key={tab.value}
               onClick={() => setSelectedStatus(tab.value)}
               className={cn(
-                'px-4 py-2 rounded-lg text-sm transition-all duration-200',
+                'px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
                 selectedStatus === tab.value
-                  ? 'text-primary font-bold bg-primary/10'
-                  : 'text-muted-foreground font-medium hover:text-primary hover:bg-primary/5'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
               )}
             >
               {tab.label}
             </button>
           ))}
+          </div>
         </div>
 
         {/* 트랙 필터 */}
