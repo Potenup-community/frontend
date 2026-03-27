@@ -250,6 +250,23 @@ export interface Track {
   endDate: string;
 }
 
+export type TrackType = "BE" | "FE" | "AI" | "UNREAL" | "GAME" | "ADMIN";
+
+export const TRACK_TYPE_FALLBACK_OPTIONS: Array<{ trackType: TrackType; label: string }> = [
+  { trackType: "BE", label: "BE" },
+  { trackType: "FE", label: "FE" },
+  { trackType: "AI", label: "AI" },
+  { trackType: "UNREAL", label: "UNREAL" },
+  { trackType: "GAME", label: "GAME" },
+  { trackType: "ADMIN", label: "ADMIN" },
+];
+
+export interface TrackTypeItem {
+  trackType: TrackType;
+  label: string;
+  requiresCardinal?: boolean;
+}
+
 export interface PostSummary {
   id: number;
   topic: string;
@@ -883,13 +900,15 @@ export interface Schedule {
 // ==================== Admin/Track Related Types ====================
 
 export interface TrackCreateRequest {
-  trackName: string;
+  trackType: TrackType;
+  cardinal?: number | null;
   startDate: string;
   endDate: string;
 }
 
 export interface TrackUpdateRequest {
-  trackName?: string;
+  trackType?: TrackType;
+  cardinal?: number | null;
   startDate?: string;
   endDate?: string;
 }
@@ -897,8 +916,11 @@ export interface TrackUpdateRequest {
 export interface AdminTrack {
   trackId: number;
   trackName: string;
+  trackType?: TrackType | null;
+  cardinal?: number | null;
   startDate: string;
   endDate: string;
+  trackStatus?: "GRADUATED" | "ENROLLED";
 }
 
 export type AdminUserRole = "ADMIN" | "MEMBER" | "INSTRUCTOR";
@@ -911,6 +933,8 @@ export const studyApi = {
   // 스터디 목록 조회
   getStudies: (params?: {
     trackId?: number;
+    trackType?: TrackType;
+    cardinal?: number;
     status?: StudyStatus;
     sortType?: "DESC" | "ASC";
     page?: number;
@@ -1017,6 +1041,12 @@ export interface ScheduleQueryResponse {
   studyEndDate: string;
 }
 
+export interface ScheduleTrackTypeItem {
+  trackType: TrackType;
+  label: string;
+  requiresCardinal: boolean;
+}
+
 export const scheduleApi = {
   // 내 트랙 스터디 일정 조회
   getMySchedules: () => api.get<MySchedule>("/studies/schedules/my/current"),
@@ -1026,6 +1056,24 @@ export const scheduleApi = {
     api.get<Record<string, ScheduleQueryResponse[]>>("/studies/schedules", {
       trackIds,
     } as any),
+
+  // 스터디 일정 등록용 과정 유형 조회 (ENROLLED)
+  getEnrolledTrackTypes: () =>
+    api.get<{ trackTypes: ScheduleTrackTypeItem[] }>("/studies/schedules/tracks/types"),
+
+  // 스터디 일정 등록용 과정 기수 조회 (ENROLLED)
+  getEnrolledTrackCardinals: (trackType: TrackType) =>
+    api.get<{ trackType: TrackType; cardinals: number[] }>(
+      "/studies/schedules/tracks/cardinals",
+      { trackType },
+    ),
+
+  // 스터디 일정 등록용 trackId 조회 (ENROLLED)
+  resolveEnrolledTrack: (trackType: TrackType, cardinal: number) =>
+    api.get<{ trackType: TrackType; cardinal: number; trackId: number }>(
+      "/studies/schedules/tracks/resolve",
+      { trackType, cardinal },
+    ),
 
   // 스터디 일정 생성
   createSchedule: (data: ScheduleCreateRequest) =>
@@ -1296,10 +1344,41 @@ export const adminApi = {
     }),
 
   // 트랙 목록 조회 (회원가입용)
-  getTracks: () => api.get<{ content: AdminTrack[] }>("/admin/tracks"),
+  getTracks: (params?: { trackType?: TrackType }) =>
+    api.get<{ content: AdminTrack[] }>("/admin/tracks", params),
 
   // 전체 트랙 목록 조회 (Admin 전용)
-  getAllTracks: () => api.get<{ content: AdminTrack[] }>("/admin/tracks"),
+  getAllTracks: (params?: { trackType?: TrackType }) =>
+    api.get<{ content: AdminTrack[] }>("/admin/tracks/all", params),
+
+  // 관리자 트랙 등록용 유형 조회
+  getTrackTypes: () =>
+    api.get<{ trackTypes: TrackTypeItem[] }>("/admin/tracks/types"),
+
+  // 회원가입용 트랙 유형 조회
+  getSignupTrackTypes: () =>
+    api.get<{ trackTypes: TrackTypeItem[] }>("/tracks/signup/types"),
+
+  // 회원가입용 트랙 유형별 기수 조회
+  getSignupTrackCardinals: (trackType: TrackType) =>
+    api.get<{ trackType: TrackType; cardinals: number[] }>(
+      "/tracks/signup/cardinals",
+      { trackType },
+    ),
+
+  // 회원가입용 trackId 조회
+  resolveSignupTrack: (trackType: TrackType, cardinal: number) =>
+    api.get<{ trackType: TrackType; cardinal: number; trackId: number }>(
+      "/tracks/signup/resolve",
+      { trackType, cardinal },
+    ),
+
+  // 관리자 트랙 유형별 기수 조회
+  getTrackCardinalsByType: (trackType: TrackType) =>
+    api.get<{ trackType: TrackType; cardinals: number[] }>(
+      "/admin/tracks/cardinals",
+      { trackType },
+    ),
 
   // 트랙 생성
   createTrack: (data: TrackCreateRequest) =>

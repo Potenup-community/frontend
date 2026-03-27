@@ -435,15 +435,6 @@ export default function CreateStudyPage() {
           </CardContent>
         </Card>
 
-        {/* Notice */}
-        <Card className="mt-6 border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950">
-          <CardContent className="pt-6">
-            <p className="text-sm text-amber-800 dark:text-amber-200">
-              스터디가 성공적으로 개설 되었습니다.
-            </p>
-          </CardContent>
-        </Card>
-
         {/* Submit Button */}
         <div className="flex justify-end gap-4 mt-6">
           <Button type="button" variant="outline" onClick={() => router.back()}>

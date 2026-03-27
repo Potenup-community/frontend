@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Loader2, Users, Plus, Calendar } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { api, Study, StudyStatus, adminApi, scheduleApi } from '@/lib/api';
+import { api, Study, StudyStatus, adminApi, scheduleApi, TrackType, TRACK_TYPE_FALLBACK_OPTIONS } from '@/lib/api';
 import { BUDGET_LABELS, STUDY_STATUS_LABELS } from '@/lib/constants';
 import { getStudyStatusBadgeProps } from '@/lib/study-status';
 import { cn } from '@/lib/utils';
@@ -25,7 +25,8 @@ import { ko } from 'date-fns/locale';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
 export default function Studies() {
-  const [selectedTrack, setSelectedTrack] = useState<number>(0);
+  const [selectedTrackType, setSelectedTrackType] = useState<TrackType | 'ALL'>('ALL');
+  const [selectedCardinal, setSelectedCardinal] = useState<number>(0);
   const [selectedStatus, setSelectedStatus] = useState<'all' | StudyStatus>('all');
 
   const { data: tracks } = useQuery({
@@ -36,12 +37,31 @@ export default function Studies() {
     },
   });
 
+  const { data: trackTypes } = useQuery({
+    queryKey: ['track-types'],
+    queryFn: async () => {
+      const res = await adminApi.getTrackTypes();
+      return res.trackTypes ?? [];
+    },
+  });
+
+  const { data: trackCardinals } = useQuery({
+    queryKey: ['track-cardinals', selectedTrackType],
+    queryFn: async () => {
+      if (selectedTrackType === 'ALL') return [];
+      const res = await adminApi.getTrackCardinalsByType(selectedTrackType);
+      return res.cardinals ?? [];
+    },
+    enabled: selectedTrackType !== 'ALL',
+  });
+
   const fetchStudies = async ({ pageParam = 0 }) => {
     const params: Record<string, any> = {
       page: pageParam,
       size: 10,
     };
-    if (selectedTrack) params.trackId = selectedTrack;
+    if (selectedTrackType !== 'ALL') params.trackType = selectedTrackType;
+    if (selectedTrackType !== 'ALL' && selectedCardinal > 0) params.cardinal = selectedCardinal;
     if (selectedStatus && selectedStatus !== 'all') params.status = selectedStatus;
 
     const res: any = await api.get('/studies', params);
@@ -88,7 +108,7 @@ export default function Studies() {
     isFetchingNextPage,
     isLoading,
   } = useInfiniteQuery({
-    queryKey: ['studies', selectedTrack, selectedStatus],
+    queryKey: ['studies', selectedTrackType, selectedCardinal, selectedStatus],
     queryFn: fetchStudies,
     initialPageParam: 0,
     getNextPageParam: (lastPage) => (lastPage.hasNext ? lastPage.pageNumber + 1 : undefined),
@@ -96,6 +116,31 @@ export default function Studies() {
   });
 
   const studies = data?.pages.flatMap((page) => page.content) || [];
+  const trackTypeLabelMap = useMemo(() => {
+    const options = trackTypes?.length
+      ? trackTypes
+      : TRACK_TYPE_FALLBACK_OPTIONS;
+    return new Map<TrackType, string>(
+      options
+        .filter((type) => type.trackType !== 'ADMIN')
+        .map((type) => [type.trackType, type.label]),
+    );
+  }, [trackTypes]);
+
+  const trackTypeOptions = useMemo(() => {
+    const typeSet = new Set<TrackType>();
+    (tracks ?? []).forEach((track) => {
+      if (track.trackType) {
+        typeSet.add(track.trackType);
+      }
+    });
+    return Array.from(typeSet);
+  }, [tracks]);
+
+  const cardinalOptions = useMemo(() => {
+    if (selectedTrackType === 'ALL') return [];
+    return (trackCardinals ?? []).slice().sort((a, b) => a - b);
+  }, [trackCardinals, selectedTrackType]);
 
   return (
     <div className="space-y-6">
@@ -143,33 +188,61 @@ export default function Studies() {
           </div>
         </div>
 
-        {/* 트랙 필터 */}
-        <div className="flex flex-wrap items-center gap-1">
-          <button
-            onClick={() => setSelectedTrack(0)}
-            className={cn(
-              'px-4 py-2 rounded-lg text-sm transition-all duration-200',
-              selectedTrack === 0
-                ? 'text-primary font-bold bg-primary/10'
-                : 'text-muted-foreground font-medium hover:text-primary hover:bg-primary/5'
-            )}
-          >
-            전체 트랙
-          </button>
-          {tracks?.map((track) => (
+        {/* 과정/기수 필터 */}
+        <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-1 flex-1">
             <button
-              key={track.trackId}
-              onClick={() => setSelectedTrack(track.trackId)}
+              onClick={() => {
+                setSelectedTrackType('ALL');
+                setSelectedCardinal(0);
+              }}
               className={cn(
                 'px-4 py-2 rounded-lg text-sm transition-all duration-200',
-                selectedTrack === track.trackId
+                selectedTrackType === 'ALL'
                   ? 'text-primary font-bold bg-primary/10'
                   : 'text-muted-foreground font-medium hover:text-primary hover:bg-primary/5'
               )}
             >
-              {track.trackName}
+              전체 과정
             </button>
-          ))}
+            {trackTypeOptions.map((trackType) => (
+              <button
+                key={trackType}
+                onClick={() => {
+                  setSelectedTrackType(trackType);
+                  setSelectedCardinal(0);
+                }}
+                className={cn(
+                  'px-4 py-2 rounded-lg text-sm transition-all duration-200',
+                  selectedTrackType === trackType
+                    ? 'text-primary font-bold bg-primary/10'
+                    : 'text-muted-foreground font-medium hover:text-primary hover:bg-primary/5'
+                )}
+              >
+                {trackTypeLabelMap.get(trackType) ?? trackType}
+              </button>
+            ))}
+          </div>
+
+          <div className="ml-auto flex-shrink-0">
+            <Select
+              value={selectedCardinal === 0 ? 'ALL' : String(selectedCardinal)}
+              onValueChange={(value) => setSelectedCardinal(value === 'ALL' ? 0 : Number(value))}
+              disabled={selectedTrackType === 'ALL'}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="기수" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">전체 기수</SelectItem>
+                {cardinalOptions.map((cardinal) => (
+                  <SelectItem key={cardinal} value={String(cardinal)}>
+                    {cardinal}기
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
