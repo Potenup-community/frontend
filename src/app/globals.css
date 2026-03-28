@@ -195,6 +195,10 @@
   .post-markdown {
     @apply prose prose-slate max-w-none dark:prose-invert prose-headings:font-bold prose-h1:text-4xl prose-h2:text-3xl prose-p:text-lg prose-p:leading-relaxed prose-li:leading-relaxed prose-blockquote:leading-relaxed;
   }
+
+  .comment-markdown {
+    @apply prose prose-sm prose-slate max-w-none dark:prose-invert prose-headings:font-semibold prose-p:leading-relaxed prose-li:leading-relaxed;
+  }
 }
 
 @layer utilities {
