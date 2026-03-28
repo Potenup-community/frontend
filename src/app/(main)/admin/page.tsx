@@ -88,6 +88,8 @@ import {
   ScheduleQueryResponse,
   ShopItemSummaryDto,
   ShopItemType,
+  TrackType,
+  TRACK_TYPE_FALLBACK_OPTIONS,
   UserSummary,
   resolveApiImageUrl
 } from '@/lib/api';
@@ -158,7 +160,7 @@ function AdminContent() {
             <Shield className="h-6 w-6 text-primary" />
             관리자 페이지
           </h1>
-          <p className="text-muted-foreground">유저, 트랙, 스터디, 상점 관리</p>
+          <p className="text-muted-foreground">유저, 과정, 스터디, 상점 관리</p>
         </div>
       </div>
 
@@ -167,7 +169,7 @@ function AdminContent() {
         <TabsList className="w-full grid grid-cols-3">
           <TabsTrigger value="user-track" className="gap-2">
             <Users className="h-4 w-4" />
-            유저 / 트랙
+            유저 / 과정
           </TabsTrigger>
           <TabsTrigger value="study" className="gap-2">
             <BookOpen className="h-4 w-4" />
@@ -188,7 +190,7 @@ function AdminContent() {
               </TabsTrigger>
               <TabsTrigger value="tracks" className="gap-2">
                 <GraduationCap className="h-4 w-4" />
-                트랙 관리
+                과정 관리
               </TabsTrigger>
             </TabsList>
             <TabsContent value="users" className="mt-4">
@@ -477,10 +479,10 @@ function UserManagementTab() {
                 onValueChange={(value) => setSelectedTrack(Number(value))}
               >
                 <SelectTrigger className="w-[180px] h-9">
-                  <SelectValue placeholder="트랙 선택" />
+                  <SelectValue placeholder="과정 선택" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="0">전체 트랙</SelectItem>
+                  <SelectItem value="0">전체 과정</SelectItem>
                   {tracks?.map((track) => (
                     <SelectItem key={track.trackId} value={track.trackId.toString()}>
                       {track.trackName}
@@ -683,160 +685,390 @@ function TrackManagementTab() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingTrack, setEditingTrack] = useState<AdminTrack | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminTrack | null>(null);
+  const [selectedTrackTypeFilter, setSelectedTrackTypeFilter] = useState<TrackType | 'ALL'>('ALL');
+  const [selectedTrackStatusFilter, setSelectedTrackStatusFilter] = useState<'ALL' | 'ENROLLED' | 'GRADUATED'>('ALL');
+  const [trackTypeSelectOpen, setTrackTypeSelectOpen] = useState(false);
   const [formData, setFormData] = useState({
-    trackName: '',
+    trackType: '' as TrackType | '',
+    cardinal: '',
     startDate: '',
     endDate: '',
   });
 
   const { data: tracks, isLoading } = useQuery({
-    queryKey: ['admin', 'tracks'],
+    queryKey: ['admin', 'tracks', selectedTrackTypeFilter],
     queryFn: async () => {
-      const res = await adminApi.getAllTracks();
+      const res = await adminApi.getAllTracks(
+        selectedTrackTypeFilter === 'ALL'
+          ? undefined
+          : { trackType: selectedTrackTypeFilter },
+      );
       return res.content || [];
     },
   });
 
+  const { data: trackTypes } = useQuery({
+    queryKey: ['admin', 'track-types'],
+    queryFn: async () => {
+      const res: any = await adminApi.getTrackTypes();
+      return Array.isArray(res) ? res : (res?.trackTypes ?? []);
+    },
+  });
+
   const createMutation = useMutation({
-    mutationFn: (data: { trackName: string; startDate: string; endDate: string }) =>
+    mutationFn: (data: { trackType: TrackType; cardinal?: number | null; startDate: string; endDate: string }) =>
       adminApi.createTrack(data),
     onSuccess: () => {
-      toast.success('트랙이 생성되었습니다.');
+      toast.success('과정이 생성되었습니다.');
       queryClient.invalidateQueries({ queryKey: ['admin', 'tracks'] });
       setIsCreateOpen(false);
       resetForm();
     },
     onError: () => {
-      toast.error('트랙 생성에 실패했습니다.');
+      toast.error('과정 생성에 실패했습니다.');
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: { trackName?: string; startDate?: string; endDate?: string } }) =>
+    mutationFn: ({ id, data }: { id: number; data: { trackType?: TrackType; cardinal?: number | null; startDate?: string; endDate?: string } }) =>
       adminApi.updateTrack(id, data),
     onSuccess: () => {
-      toast.success('트랙이 수정되었습니다.');
+      toast.success('과정이 수정되었습니다.');
       queryClient.invalidateQueries({ queryKey: ['admin', 'tracks'] });
       setEditingTrack(null);
       resetForm();
     },
     onError: () => {
-      toast.error('트랙 수정에 실패했습니다.');
+      toast.error('과정 수정에 실패했습니다.');
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => adminApi.deleteTrack(id),
     onSuccess: () => {
-      toast.success('트랙이 삭제되었습니다.');
+      toast.success('과정이 삭제되었습니다.');
       queryClient.invalidateQueries({ queryKey: ['admin', 'tracks'] });
       setDeleteTarget(null);
     },
     onError: () => {
-      toast.error('트랙 삭제에 실패했습니다.');
+      toast.error('과정 삭제에 실패했습니다.');
     },
   });
 
   const resetForm = () => {
-    setFormData({ trackName: '', startDate: '', endDate: '' });
+    setFormData({ trackType: '', cardinal: '', startDate: '', endDate: '' });
+  };
+
+  const selectedTrackTypeOption = trackTypes?.find(
+    (type: { trackType: TrackType; label: string; requiresCardinal?: boolean }) =>
+      type.trackType === formData.trackType,
+  );
+  const visibleTrackTypes = (trackTypes ?? []).filter(
+    (type: { trackType: TrackType }) => type.trackType !== 'ADMIN',
+  );
+  const requiresCardinal =
+    selectedTrackTypeOption?.requiresCardinal ?? (formData.trackType !== 'ADMIN');
+  const trackTypeLabelMap = new Map<TrackType, string>(
+    (visibleTrackTypes.length
+      ? visibleTrackTypes
+      : TRACK_TYPE_FALLBACK_OPTIONS.filter((type) => type.trackType !== 'ADMIN')
+    ).map(
+      (type: { trackType: TrackType; label: string }) => [type.trackType, type.label],
+    ),
+  );
+
+  const formatTrackDisplay = (track: AdminTrack): string => {
+    if (!track.trackType) return '과정 정보 없음';
+    const label = trackTypeLabelMap.get(track.trackType) ?? track.trackType;
+    if (track.cardinal !== undefined && track.cardinal !== null) {
+      return `${label} ${track.cardinal}기`;
+    }
+    return label;
   };
 
   const handleCreate = () => {
-    if (!formData.trackName || !formData.startDate || !formData.endDate) {
+    if (!formData.trackType || !formData.startDate || !formData.endDate) {
       toast.error('모든 필드를 입력해주세요.');
       return;
     }
-    createMutation.mutate(formData);
+    if (requiresCardinal && !formData.cardinal) {
+      toast.error('기수를 입력해주세요.');
+      return;
+    }
+    createMutation.mutate({
+      trackType: formData.trackType,
+      cardinal: requiresCardinal ? Number(formData.cardinal) : null,
+      startDate: formData.startDate,
+      endDate: formData.endDate,
+    });
   };
 
   const handleUpdate = () => {
     if (!editingTrack) return;
+    if (!formData.trackType || !formData.startDate || !formData.endDate) {
+      toast.error('모든 필드를 입력해주세요.');
+      return;
+    }
+    if (requiresCardinal && !formData.cardinal) {
+      toast.error('기수를 입력해주세요.');
+      return;
+    }
     updateMutation.mutate({
       id: editingTrack.trackId,
-      data: formData,
+      data: {
+        trackType: formData.trackType,
+        cardinal: requiresCardinal ? Number(formData.cardinal) : null,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+      },
     });
+  };
+
+  const parseTrackNameToForm = (trackName: string): { trackType: TrackType | ''; cardinal: string } => {
+    if (trackName.includes('운영자')) {
+      return { trackType: 'ADMIN', cardinal: '' };
+    }
+
+    const exactMatch = trackName.match(/^(BE|FE|AI|UNREAL|GAME)\s*(\d+)기$/i);
+    if (exactMatch) {
+      return {
+        trackType: exactMatch[1].toUpperCase() as TrackType,
+        cardinal: exactMatch[2],
+      };
+    }
+
+    const genericMatch = trackName.match(/^(.+?)\s*(\d+)기$/);
+    if (!genericMatch) {
+      return { trackType: '', cardinal: '' };
+    }
+
+    const rawType = genericMatch[1].trim().toUpperCase();
+    const cardinal = genericMatch[2];
+    const aliasToType: Record<string, TrackType> = {
+      BE: 'BE',
+      FE: 'FE',
+      AI: 'AI',
+      'AI AGENT': 'AI',
+      UNREAL: 'UNREAL',
+      GAME: 'GAME',
+    };
+
+    return {
+      trackType: aliasToType[rawType] ?? '',
+      cardinal,
+    };
   };
 
   const openEditDialog = (track: AdminTrack) => {
+    const parsed = parseTrackNameToForm(track.trackName);
+    const resolvedTrackType = track.trackType ?? parsed.trackType;
+    const resolvedCardinal =
+      track.cardinal !== undefined && track.cardinal !== null
+        ? String(track.cardinal)
+        : parsed.cardinal;
+
     setEditingTrack(track);
     setFormData({
-      trackName: track.trackName,
+      trackType: resolvedTrackType,
+      cardinal: resolvedCardinal,
       startDate: track.startDate,
       endDate: track.endDate,
     });
+    if (!resolvedTrackType) {
+      toast.info('기존 과정명을 자동 해석하지 못해 과정 유형/기수를 수동 선택해주세요.');
+    }
   };
+  const trackItems = tracks ?? [];
+  const filteredTrackItems = trackItems
+    .filter((track) => track.trackType !== 'ADMIN' && track.trackName !== '운영자')
+    .filter((track) => {
+    if (selectedTrackStatusFilter === 'ALL') return true;
+    return track.trackStatus === selectedTrackStatusFilter;
+  });
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold">트랙 목록</h2>
-        <Button onClick={() => setIsCreateOpen(true)} className="bg-orange-500 hover:bg-orange-600 text-white">
-          <Plus className="h-4 w-4 mr-2" />
-          트랙 추가
-        </Button>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-lg font-semibold">과정 목록</h2>
+        <div className="flex gap-2">
+          <div className="w-[150px]">
+            <Select
+              value={selectedTrackStatusFilter}
+              onValueChange={(value) =>
+                setSelectedTrackStatusFilter(value as 'ALL' | 'ENROLLED' | 'GRADUATED')
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="상태 필터" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">전체 상태</SelectItem>
+                <SelectItem value="ENROLLED">운영중</SelectItem>
+                <SelectItem value="GRADUATED">종료</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-[200px]">
+            <Select
+              value={selectedTrackTypeFilter}
+              onValueChange={(value) => setSelectedTrackTypeFilter(value as TrackType | 'ALL')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="과정 유형 필터" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">전체</SelectItem>
+                {visibleTrackTypes.map((type: { trackType: TrackType; label: string }) => (
+                  <SelectItem key={type.trackType} value={type.trackType}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={() => setIsCreateOpen(true)} className="bg-orange-500 hover:bg-orange-600 text-white">
+            <Plus className="h-4 w-4 mr-2" />
+            과정 추가
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
         <div className="space-y-3">
-          {[...Array(3)].map((_, i) => (
-            <Skeleton key={i} className="h-20" />
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-16" />
           ))}
         </div>
-      ) : tracks?.length === 0 ? (
+      ) : filteredTrackItems.length === 0 ? (
         <EmptyState
           icon={GraduationCap}
-          title="트랙이 없습니다"
-          description="새로운 트랙을 추가해주세요."
+          title="과정이 없습니다"
+          description="선택한 조건에 맞는 과정이 없습니다."
         />
       ) : (
-        <div className="space-y-3">
-          {tracks?.map((track) => (
-            <Card key={track.trackId}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{track.trackName}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {track.startDate} ~ {track.endDate}
-                  </p>
+        <Card className="overflow-hidden border-border/80">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <CardTitle className="text-base">등록된 과정</CardTitle>
+              <Badge variant="secondary">표시 {filteredTrackItems.length}개</Badge>
+              <Badge variant="outline">
+                운영중 {filteredTrackItems.filter((t) => t.trackStatus === 'ENROLLED').length}개
+              </Badge>
+              <Badge variant="outline">
+                종료 {filteredTrackItems.filter((t) => t.trackStatus === 'GRADUATED').length}개
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="hidden md:grid grid-cols-[0.8fr_0.8fr_0.8fr_1.7fr_0.9fr] px-4 py-2 text-xs text-muted-foreground border-y bg-muted/30">
+              <span className="justify-self-start">과정 유형</span>
+              <span className="justify-self-center">기수</span>
+              <span className="justify-self-center">상태</span>
+              <span className="justify-self-start">기간</span>
+              <span className="justify-self-end">관리</span>
+            </div>
+            <div className="divide-y">
+              {filteredTrackItems.map((track) => (
+                <div key={track.trackId} className="px-4 py-3 hover:bg-muted/30 transition-colors">
+                  <div className="grid gap-3 md:grid-cols-[0.8fr_0.8fr_0.8fr_1.7fr_0.9fr] md:items-center">
+                    <div className="justify-self-start">
+                      {track.trackType ? (
+                        <Badge variant="outline" className="rounded-md text-sm font-semibold px-2.5 py-1">
+                          {trackTypeLabelMap.get(track.trackType) ?? track.trackType}
+                        </Badge>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">-</span>
+                      )}
+                    </div>
+
+                    <div className="justify-self-center">
+                      {track.cardinal !== undefined && track.cardinal !== null ? (
+                        <Badge variant="outline" className="rounded-md text-sm font-semibold px-2.5 py-1">
+                          {track.cardinal}기
+                        </Badge>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">-</span>
+                      )}
+                    </div>
+
+                    <div className="justify-self-center">
+                      <Badge variant={track.trackStatus === 'ENROLLED' ? 'default' : 'secondary'}>
+                        {track.trackStatus === 'ENROLLED' ? '운영중' : '종료'}
+                      </Badge>
+                    </div>
+
+                    <div className="justify-self-start text-sm text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3.5 w-3.5" />
+                      <span>{track.startDate} ~ {track.endDate}</span>
+                    </div>
+
+                    <div className="justify-self-end flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEditDialog(track)}
+                      >
+                        <Pencil className="h-4 w-4 mr-1" />
+                        수정
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setDeleteTarget(track)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        삭제
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEditDialog(track)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => setDeleteTarget(track)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Create Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>트랙 추가</DialogTitle>
-            <DialogDescription>새로운 트랙 정보를 입력해주세요.</DialogDescription>
+            <DialogTitle>과정 추가</DialogTitle>
+            <DialogDescription>새로운 과정 정보를 입력해주세요.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="trackName">트랙 이름</Label>
+              <Label htmlFor="trackType">과정 유형</Label>
+              <Select
+                open={trackTypeSelectOpen}
+                onOpenChange={setTrackTypeSelectOpen}
+                value={formData.trackType}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, trackType: value as TrackType, cardinal: value === 'ADMIN' ? '' : formData.cardinal })
+                }
+              >
+                <SelectTrigger id="trackType">
+                  <SelectValue placeholder="과정 유형 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {visibleTrackTypes.map((type: { trackType: TrackType; label: string }) => (
+                    <SelectItem key={type.trackType} value={type.trackType}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cardinal">기수</Label>
               <Input
-                id="trackName"
-                value={formData.trackName}
-                onChange={(e) => setFormData({ ...formData, trackName: e.target.value })}
-                placeholder="예: Backend 5기"
+                id="cardinal"
+                type="number"
+                min={1}
+                value={formData.cardinal}
+                onChange={(e) => setFormData({ ...formData, cardinal: e.target.value })}
+                placeholder="예: 3"
+                disabled={!requiresCardinal}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -875,16 +1107,41 @@ function TrackManagementTab() {
       <Dialog open={!!editingTrack} onOpenChange={(open) => !open && setEditingTrack(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>트랙 수정</DialogTitle>
-            <DialogDescription>트랙 정보를 수정해주세요.</DialogDescription>
+            <DialogTitle>과정 수정</DialogTitle>
+            <DialogDescription>과정 정보를 수정해주세요.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="editTrackName">트랙 이름</Label>
+              <Label htmlFor="editTrackType">과정 유형</Label>
+              <Select
+                open={trackTypeSelectOpen}
+                onOpenChange={setTrackTypeSelectOpen}
+                value={formData.trackType}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, trackType: value as TrackType, cardinal: value === 'ADMIN' ? '' : formData.cardinal })
+                }
+              >
+                <SelectTrigger id="editTrackType">
+                  <SelectValue placeholder="과정 유형 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {visibleTrackTypes.map((type: { trackType: TrackType; label: string }) => (
+                    <SelectItem key={type.trackType} value={type.trackType}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editCardinal">기수</Label>
               <Input
-                id="editTrackName"
-                value={formData.trackName}
-                onChange={(e) => setFormData({ ...formData, trackName: e.target.value })}
+                id="editCardinal"
+                type="number"
+                min={1}
+                value={formData.cardinal}
+                onChange={(e) => setFormData({ ...formData, cardinal: e.target.value })}
+                disabled={!requiresCardinal}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -923,9 +1180,9 @@ function TrackManagementTab() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>트랙 삭제</AlertDialogTitle>
+            <AlertDialogTitle>과정 삭제</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget?.trackName} 트랙을 삭제하시겠습니까?
+              {deleteTarget ? formatTrackDisplay(deleteTarget) : ''} 과정을 삭제하시겠습니까?
               <span className="block mt-2 text-destructive">
                 이 작업은 되돌릴 수 없습니다.
               </span>
@@ -1410,14 +1667,14 @@ function StudyApprovalTab() {
           <DialogHeader>
             <DialogTitle>스터디 추가 참여</DialogTitle>
             <DialogDescription>
-              "{forceJoinStudy?.name}" 스터디에 트랙 구성원을 추가로 참여시킵니다.
+              "{forceJoinStudy?.name}" 스터디에 과정 구성원을 추가로 참여시킵니다.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline">
-                {forceJoinTrackName ? `${forceJoinTrackName} 트랙` : '트랙 정보 없음'}
+                {forceJoinTrackName ? `${forceJoinTrackName} 과정` : '과정 정보 없음'}
               </Badge>
               {forceJoinStudy && (
                 <Badge variant="outline">
@@ -1434,7 +1691,7 @@ function StudyApprovalTab() {
 
             {showForceJoinTrackError && (
               <p className="text-sm text-destructive">
-                스터디 트랙 정보를 찾을 수 없어 사용자 검색을 진행할 수 없습니다.
+                스터디 과정 정보를 찾을 수 없어 사용자 검색을 진행할 수 없습니다.
               </p>
             )}
 
@@ -1457,13 +1714,13 @@ function StudyApprovalTab() {
                   forceJoinStudy?.status !== 'RECRUITING_CLOSED'
                 }
                 loading={isForceJoinStudyLoading || isForceJoinTrackUsersLoading}
-                emptyMessage="선택 가능한 트랙 구성원이 없습니다."
+                emptyMessage="선택 가능한 과정 구성원이 없습니다."
               />
               <p className="text-xs text-muted-foreground">
                 한 명만 선택할 수 있으며, 다른 사용자를 선택하면 기존 선택이 대체됩니다.
               </p>
               <p className="text-xs text-muted-foreground">
-                검색 풀은 해당 스터디 트랙의 승인된 유저로 제한됩니다.
+                검색 풀은 해당 스터디 과정의 승인된 유저로 제한됩니다.
               </p>
             </div>
 
@@ -1481,7 +1738,7 @@ function StudyApprovalTab() {
                     <p className="text-xs text-muted-foreground truncate">
                       {[selectedForceJoinUser.trackName, selectedForceJoinUser.email]
                         .filter(Boolean)
-                        .join(' · ') || '트랙 사용자'}
+                        .join(' · ') || '과정 사용자'}
                     </p>
                   </div>
                 </div>
@@ -2035,7 +2292,7 @@ function StudyReportApprovalTab() {
                             {studyDetail.leader?.name || selectedReport?.leaderName}
                           </p>
                           <p className='text-xs text-muted-foreground truncate'>
-                            {studyDetail.leader?.trackName || '트랙 정보 없음'}
+                            {studyDetail.leader?.trackName || '과정 정보 없음'}
                           </p>
                         </div>
                       </div>
@@ -2348,6 +2605,8 @@ function ScheduleManagementTab() {
   const [editingSchedule, setEditingSchedule] = useState<ScheduleQueryResponse | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ScheduleQueryResponse | null>(null);
   const [selectedTrackFilter, setSelectedTrackFilter] = useState<number>(0);
+  const [selectedScheduleTrackType, setSelectedScheduleTrackType] = useState<TrackType | ''>('');
+  const [selectedScheduleCardinal, setSelectedScheduleCardinal] = useState<string>('');
   const [formData, setFormData] = useState<ScheduleCreateRequest>({
     trackId: 0,
     month: '',
@@ -2361,6 +2620,24 @@ function ScheduleManagementTab() {
     queryFn: async () => {
       const res = await adminApi.getAllTracks();
       return res.content || [];
+    },
+  });
+
+  const { data: enrolledTrackTypes } = useQuery({
+    queryKey: ['admin', 'schedule', 'track-types'],
+    queryFn: async () => {
+      const res = await scheduleApi.getEnrolledTrackTypes();
+      return res.trackTypes ?? [];
+    },
+  });
+
+  const { data: enrolledCardinals } = useQuery({
+    queryKey: ['admin', 'schedule', 'cardinals', selectedScheduleTrackType],
+    enabled: !!selectedScheduleTrackType,
+    queryFn: async () => {
+      if (!selectedScheduleTrackType) return [];
+      const res = await scheduleApi.getEnrolledTrackCardinals(selectedScheduleTrackType);
+      return res.cardinals ?? [];
     },
   });
 
@@ -2420,22 +2697,53 @@ function ScheduleManagementTab() {
 
   const resetForm = () => {
     setFormData({ trackId: 0, month: '', recruitStartDate: '', recruitEndDate: '', studyEndDate: '' });
+    setSelectedScheduleTrackType('');
+    setSelectedScheduleCardinal('');
   };
 
-  const handleCreate = () => {
-    if (!formData.trackId || !formData.month || !formData.recruitStartDate || !formData.recruitEndDate || !formData.studyEndDate) {
+  const resolveSelectedTrackId = async (): Promise<number | null> => {
+    if (!selectedScheduleTrackType || !selectedScheduleCardinal) {
+      toast.error('과정 유형과 기수를 선택해주세요.');
+      return null;
+    }
+
+    try {
+      const resolved = await scheduleApi.resolveEnrolledTrack(
+        selectedScheduleTrackType,
+        Number(selectedScheduleCardinal),
+      );
+      return resolved.trackId;
+    } catch {
+      toast.error('선택한 과정/기수에 해당하는 진행중 과정을 찾지 못했습니다.');
+      return null;
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!formData.month || !formData.recruitStartDate || !formData.recruitEndDate || !formData.studyEndDate) {
       toast.error('모든 필드를 입력해주세요.');
       return;
     }
-    createMutation.mutate(formData);
+
+    const trackId = await resolveSelectedTrackId();
+    if (!trackId) return;
+
+    createMutation.mutate({
+      ...formData,
+      trackId,
+    });
   };
 
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
     if (!editingSchedule) return;
+
+    const trackId = await resolveSelectedTrackId();
+    if (!trackId) return;
+
     updateMutation.mutate({
       id: editingSchedule.id,
       data: {
-        trackId: formData.trackId || undefined,
+        trackId,
         months: formData.month || undefined,
         recruitStartDate: formData.recruitStartDate || undefined,
         recruitEndDate: formData.recruitEndDate || undefined,
@@ -2446,6 +2754,11 @@ function ScheduleManagementTab() {
 
   const openEditDialog = (schedule: ScheduleQueryResponse) => {
     setEditingSchedule(schedule);
+    const matchedTrack = tracks?.find((track) => track.trackId === schedule.trackId);
+    setSelectedScheduleTrackType((matchedTrack?.trackType as TrackType) ?? '');
+    setSelectedScheduleCardinal(
+      typeof matchedTrack?.cardinal === 'number' ? String(matchedTrack.cardinal) : '',
+    );
     setFormData({
       trackId: schedule.trackId,
       month: schedule.months,
@@ -2474,10 +2787,10 @@ function ScheduleManagementTab() {
             onValueChange={(value) => setSelectedTrackFilter(Number(value))}
           >
             <SelectTrigger className="w-[180px] h-9">
-              <SelectValue placeholder="트랙 선택" />
+              <SelectValue placeholder="과정 선택" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="0">전체 트랙</SelectItem>
+              <SelectItem value="0">전체 과정</SelectItem>
               {tracks?.map((track) => (
                 <SelectItem key={track.trackId} value={track.trackId.toString()}>
                   {track.trackName}
@@ -2512,7 +2825,7 @@ function ScheduleManagementTab() {
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <Badge variant="outline">{schedule.trackName || `트랙 ${schedule.trackId}`}</Badge>
+                      <Badge variant="outline">{schedule.trackName || `과정 ${schedule.trackId}`}</Badge>
                       <span className="font-semibold">{MONTH_LABELS[schedule.months] || schedule.monthName || schedule.months}</span>
                     </div>
                     <div className="text-sm text-muted-foreground space-y-0.5">
@@ -2547,7 +2860,16 @@ function ScheduleManagementTab() {
             <DialogTitle>스터디 일정 추가</DialogTitle>
             <DialogDescription>새로운 스터디 일정을 생성합니다.</DialogDescription>
           </DialogHeader>
-          <ScheduleForm formData={formData} setFormData={setFormData} tracks={tracks} />
+          <ScheduleForm
+            formData={formData}
+            setFormData={setFormData}
+            trackTypes={enrolledTrackTypes}
+            cardinals={enrolledCardinals}
+            selectedTrackType={selectedScheduleTrackType}
+            selectedCardinal={selectedScheduleCardinal}
+            setSelectedTrackType={setSelectedScheduleTrackType}
+            setSelectedCardinal={setSelectedScheduleCardinal}
+          />
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateOpen(false)}>취소</Button>
             <Button onClick={handleCreate} disabled={createMutation.isPending}>
@@ -2564,7 +2886,16 @@ function ScheduleManagementTab() {
             <DialogTitle>스터디 일정 수정</DialogTitle>
             <DialogDescription>스터디 일정 정보를 수정합니다.</DialogDescription>
           </DialogHeader>
-          <ScheduleForm formData={formData} setFormData={setFormData} tracks={tracks} />
+          <ScheduleForm
+            formData={formData}
+            setFormData={setFormData}
+            trackTypes={enrolledTrackTypes}
+            cardinals={enrolledCardinals}
+            selectedTrackType={selectedScheduleTrackType}
+            selectedCardinal={selectedScheduleCardinal}
+            setSelectedTrackType={setSelectedScheduleTrackType}
+            setSelectedCardinal={setSelectedScheduleCardinal}
+          />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingSchedule(null)}>취소</Button>
             <Button onClick={handleUpdate} disabled={updateMutation.isPending}>
@@ -2605,27 +2936,59 @@ function ScheduleManagementTab() {
 function ScheduleForm({
   formData,
   setFormData,
-  tracks,
+  trackTypes,
+  cardinals,
+  selectedTrackType,
+  selectedCardinal,
+  setSelectedTrackType,
+  setSelectedCardinal,
 }: {
   formData: ScheduleCreateRequest;
   setFormData: (data: ScheduleCreateRequest) => void;
-  tracks?: AdminTrack[];
+  trackTypes?: Array<{ trackType: TrackType; label: string; requiresCardinal?: boolean }>;
+  cardinals?: number[];
+  selectedTrackType: TrackType | '';
+  selectedCardinal: string;
+  setSelectedTrackType: (value: TrackType | '') => void;
+  setSelectedCardinal: (value: string) => void;
 }) {
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label>트랙 선택</Label>
+        <Label>과정 유형</Label>
         <Select
-          value={formData.trackId ? formData.trackId.toString() : ''}
-          onValueChange={(value) => setFormData({ ...formData, trackId: Number(value) })}
+          value={selectedTrackType}
+          onValueChange={(value) => {
+            setSelectedTrackType(value as TrackType);
+            setSelectedCardinal('');
+          }}
         >
           <SelectTrigger>
-            <SelectValue placeholder="트랙을 선택하세요" />
+            <SelectValue placeholder="과정 유형을 선택하세요" />
           </SelectTrigger>
           <SelectContent>
-            {tracks?.map((track) => (
-              <SelectItem key={track.trackId} value={track.trackId.toString()}>
-                {track.trackName}
+            {trackTypes?.map((trackType) => (
+              <SelectItem key={trackType.trackType} value={trackType.trackType}>
+                {trackType.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>기수</Label>
+        <Select
+          value={selectedCardinal}
+          onValueChange={(value) => setSelectedCardinal(value)}
+          disabled={!selectedTrackType}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="기수를 선택하세요" />
+          </SelectTrigger>
+          <SelectContent>
+            {cardinals?.map((cardinal) => (
+              <SelectItem key={cardinal} value={String(cardinal)}>
+                {cardinal}기
               </SelectItem>
             ))}
           </SelectContent>

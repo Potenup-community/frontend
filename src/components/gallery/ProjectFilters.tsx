@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { ProjectTrackFilter } from "@/app/(main)/projects/page";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -18,6 +17,11 @@ interface ProjectFiltersProps {
   activeFilter: number | "all";
   onFilterChange: (filter: number | "all") => void;
   tracks: ProjectTrackFilter[];
+}
+
+interface ProjectTrackFilter {
+  trackId: number;
+  trackName: string;
 }
 
 export function ProjectFilters({

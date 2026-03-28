@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { api, Track } from "@/lib/api";
+import { adminApi, api, TrackType } from "@/lib/api";
 import { toast } from "sonner";
 import { VALIDATION } from "@/lib/constants";
 
@@ -38,7 +38,8 @@ const signUpSchema = z.object({
       (val) => VALIDATION.PHONE_PATTERN.test(val),
       "올바른 전화번호 형식이 아닙니다 (예: 010-1234-5678)",
     ),
-  trackId: z.string().min(1, "트랙을 선택해주세요"),
+  trackType: z.string().min(1, "과정 유형을 선택해주세요"),
+  cardinal: z.string().min(1, "기수를 선택해주세요"),
 });
 
 type SignUpFormData = z.infer<typeof signUpSchema>;
@@ -46,6 +47,8 @@ type SignUpFormData = z.infer<typeof signUpSchema>;
 export default function SignUp() {
   const router = useRouter();
   const [isSuccess, setIsSuccess] = useState(false);
+  const [trackTypeSelectOpen, setTrackTypeSelectOpen] = useState(false);
+  const [cardinalSelectOpen, setCardinalSelectOpen] = useState(false);
 
   // Check for pending idToken
   // Safe to access sessionStorage in useEffect
@@ -60,13 +63,6 @@ export default function SignUp() {
     }
   }, [router]);
 
-  // Fetch tracks
-  const { data: tracks, isLoading: isLoadingTracks } = useQuery({
-    queryKey: ["tracks"],
-    queryFn: () =>
-      api.get<Track[]>("/admin/tracks").then((res: any) => res.content),
-  });
-
   // Form setup
   const {
     register,
@@ -77,6 +73,47 @@ export default function SignUp() {
   } = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
   });
+
+  const selectedTrackType = watch("trackType");
+
+  // 회원가입용 과정 유형 조회
+  const {
+    data: trackTypes,
+    isLoading: isLoadingTrackTypes,
+    refetch: refetchTrackTypes,
+  } = useQuery({
+    queryKey: ["signup", "track-types"],
+    queryFn: async () => {
+      const res: any = await adminApi.getSignupTrackTypes();
+      return Array.isArray(res) ? res : (res?.trackTypes ?? []);
+    },
+    enabled: false,
+  });
+
+  useEffect(() => {
+    if (trackTypeSelectOpen) {
+      refetchTrackTypes();
+    }
+  }, [trackTypeSelectOpen, refetchTrackTypes]);
+
+  // 선택한 과정 유형의 기수 조회
+  const {
+    data: cardinals,
+    isLoading: isLoadingCardinals,
+    refetch: refetchCardinals,
+  } = useQuery({
+    queryKey: ["signup", "track-cardinals", selectedTrackType],
+    queryFn: () =>
+      adminApi
+        .getSignupTrackCardinals(selectedTrackType as TrackType)
+        .then((res) => res.cardinals),
+    enabled: false,
+  });
+
+  useEffect(() => {
+    if (!cardinalSelectOpen || !selectedTrackType) return;
+    void refetchCardinals();
+  }, [cardinalSelectOpen, selectedTrackType, refetchCardinals]);
 
   const formatPhoneNumber = (value: string) => {
     const numbersOnly = value.replace(/\D/g, "");
@@ -98,14 +135,20 @@ export default function SignUp() {
 
   // Sign up mutation
   const signUpMutation = useMutation({
-    mutationFn: (data: SignUpFormData) =>
-      api.post("/users/signup", {
+    mutationFn: async (data: SignUpFormData) => {
+      const resolved = await adminApi.resolveSignupTrack(
+        data.trackType as TrackType,
+        parseInt(data.cardinal, 10),
+      );
+
+      return api.post("/users/signup", {
         idToken,
-        trackId: parseInt(data.trackId),
+        trackId: resolved.trackId,
         name: data.name,
         phoneNumber: getPhoneNumberDigitsOnly(data.phoneNumber),
         provider: "GOOGLE",
-      }),
+      });
+    },
     onSuccess: () => {
       // Clear stored idToken
       sessionStorage.removeItem("pendingIdToken");
@@ -175,34 +218,70 @@ export default function SignUp() {
 
           <CardContent className="p-6 pt-0">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-              {/* Track Selection */}
+              {/* Course Type Selection */}
               <div className="space-y-2">
-                <Label htmlFor="trackId">참여 과정</Label>
+                <Label htmlFor="trackType">과정 유형</Label>
                 <Select
-                  onValueChange={(value) => setValue("trackId", value)}
-                  disabled={isLoadingTracks}
+                  open={trackTypeSelectOpen}
+                  onOpenChange={setTrackTypeSelectOpen}
+                  onValueChange={(value) => {
+                    setValue("trackType", value, { shouldValidate: true });
+                    setValue("cardinal", "", { shouldValidate: true });
+                  }}
+                  disabled={isLoadingTrackTypes}
                 >
                   <SelectTrigger
-                    className={errors.trackId ? "border-destructive" : ""}
+                    className={errors.trackType ? "border-destructive" : ""}
                   >
-                    <SelectValue placeholder="과정을 선택해주세요" />
+                    <SelectValue placeholder="과정 유형을 선택해주세요" />
                   </SelectTrigger>
                   <SelectContent>
-                    {tracks?.map(
-                      (track: { trackId: number; trackName: string }) => (
+                    {trackTypes?.map(
+                      (trackType: { trackType: TrackType; label: string }) => (
                         <SelectItem
-                          key={track.trackId}
-                          value={String(track.trackId)}
+                          key={trackType.trackType}
+                          value={trackType.trackType}
                         >
-                          {track.trackName}
+                          {trackType.label}
                         </SelectItem>
                       ),
                     )}
                   </SelectContent>
                 </Select>
-                {errors.trackId && (
+                {errors.trackType && (
                   <p className="text-sm text-destructive">
-                    {errors.trackId.message}
+                    {errors.trackType.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Cardinal Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="cardinal">기수</Label>
+                <Select
+                  open={cardinalSelectOpen}
+                  onOpenChange={setCardinalSelectOpen}
+                  onValueChange={(value) =>
+                    setValue("cardinal", value, { shouldValidate: true })
+                  }
+                  disabled={!selectedTrackType || isLoadingCardinals}
+                >
+                  <SelectTrigger
+                    className={errors.cardinal ? "border-destructive" : ""}
+                  >
+                    <SelectValue placeholder="기수를 선택해주세요" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cardinals?.map((cardinal: number) => (
+                      <SelectItem key={cardinal} value={String(cardinal)}>
+                        {cardinal}기
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.cardinal && (
+                  <p className="text-sm text-destructive">
+                    {errors.cardinal.message}
                   </p>
                 )}
               </div>
